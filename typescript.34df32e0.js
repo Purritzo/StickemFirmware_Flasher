@@ -689,6 +689,17 @@ const programDiv = document.getElementById("program");
 const lblBaudrate = document.getElementById("lblBaudrate");
 const lblConnTo = document.getElementById("lblConnTo");
 const alertDiv = document.getElementById("alertDiv");
+// Check Web Serial API support immediately on load
+if (!('serial' in navigator)) {
+    const alertDiv = document.getElementById("alertDiv");
+    const alertMsg = document.getElementById("alertmsg");
+    alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
+    alertDiv.style.display = "block";
+    // Disable connect functionality
+    const connectButton = document.getElementById("connectButton");
+    connectButton.disabled = true;
+    connectButton.title = "Web Serial API not supported";
+}
 const serialLib = !navigator.serial && navigator.usb ? (0, _webSerialPolyfill.serial) : navigator.serial;
 const term = new Terminal({
     cols: 120,

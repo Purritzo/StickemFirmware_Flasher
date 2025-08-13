@@ -87,9 +87,8 @@
          <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     </head>
     <body>
-        <div id="safariErr" style="display: none"><p align="center" style="color: red">This tool is not supported on Safari browser!</p>
-        </div>
-        <header style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; margin-bottom: 5px; padding: 10px">
+        
+        <header style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; margin-bottom: 5px; padding: 10px">
             <div class="container">
                 <div style="align-items: center; gap: 15px; display: flex">
                     <img src="./STICKEM-LOGO.b8c1e473.png" alt="Stick'Em Logo" style="width: auto; height: 60px">
@@ -140,12 +139,25 @@
         </div>
         <script src="./typescript.34df32e0.js" type="module"></script>
         <script>// Safari 3.0+ "[object HTMLElementConstructor]"
-var isSafari = /constructor/i.test(window.HTMLElement) || function(p) {
-    return p.toString() === "[object SafariRemoteNotification]";
-}(!window['safari'] || typeof safari !== 'undefined' && window['safari'].pushNotification);
-if (isSafari) {
-    document.getElementById("safariErr").style.display = "inline";
-    document.getElementById("main").style.display = "none";
+//var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return p.toString() === "[object SafariRemoteNotification]"; })(!window['safari'] || (typeof safari !== 'undefined' && window['safari'].pushNotification));
+//if(isSafari)
+//{
+//   document.getElementById("safariErr").style.display = "inline";
+//   document.getElementById("main").style.display = "none";
+//}
+// Check Web Serial API support
+if (!('serial' in navigator)) {
+    var alertDiv = document.getElementById("alertDiv");
+    var alertMsg = document.getElementById("alertmsg");
+    if (alertDiv && alertMsg) {
+        alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
+        alertDiv.style.display = "block";
+    }
+    var connectButton = document.getElementById("connectButton");
+    if (connectButton) {
+        connectButton.disabled = true;
+        connectButton.title = "Web Serial API not supported";
+    }
 }
 
 </script>
