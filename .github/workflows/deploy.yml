@@ -44,13 +44,17 @@ jobs:
         cd examples/typescript
         npm run build:gh-pages
 
+    - name: Setup Pages
+      if: github.ref == 'refs/heads/main'
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./examples/typescript/dist
+
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/main'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./examples/typescript/dist
-        # Keep the history of gh-pages branch
-        keep_files: false
-        # Custom commit message
-        commit_message: 'Deploy: ${{ github.event.head_commit.message }}'
+      id: deployment
+      uses: actions/deploy-pages@v4
