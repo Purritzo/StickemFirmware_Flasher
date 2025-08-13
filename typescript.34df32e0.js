@@ -130,7 +130,7 @@
 
   // Only insert newRequire.load when it is actually used.
   // The code in this file is linted against ES5, so dynamic import is not allowed.
-  // INSERT_LOAD_HERE
+  function $parcel$resolve(url) {  url = importMap[url] || url;  return import.meta.resolve(distDir + url);}newRequire.resolve = $parcel$resolve;
 
   Object.defineProperty(newRequire, 'root', {
     get: function () {
@@ -667,33 +667,25 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"gH3Lb":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 // This is a frontend example of Esptool-JS using local bundle file
 // To optimize use a CDN hosted version like
 // https://unpkg.com/esptool-js@0.5.0/bundle.js
 var _lib = require("../../../lib");
 var _webSerialPolyfill = require("web-serial-polyfill");
+var _stickemMainMergedBinUrl = require("url:./stickem_main_merged.bin?url");
+var _stickemMainMergedBinUrlDefault = parcelHelpers.interopDefault(_stickemMainMergedBinUrl);
 const baudrates = document.getElementById("baudrates");
-const consoleBaudrates = document.getElementById("consoleBaudrates");
 const connectButton = document.getElementById("connectButton");
 const traceButton = document.getElementById("copyTraceButton");
 const disconnectButton = document.getElementById("disconnectButton");
-const resetButton = document.getElementById("resetButton");
-const consoleStartButton = document.getElementById("consoleStartButton");
-const consoleStopButton = document.getElementById("consoleStopButton");
 const eraseButton = document.getElementById("eraseButton");
-const addFileButton = document.getElementById("addFile");
-const programButton = document.getElementById("programButton");
 const boardNameInput = document.getElementById("boardName");
 const writeBoardNameButton = document.getElementById("writeBoardNameButton");
-const filesDiv = document.getElementById("files");
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
-const consoleDiv = document.getElementById("console");
 const lblBaudrate = document.getElementById("lblBaudrate");
-const lblConsoleBaudrate = document.getElementById("lblConsoleBaudrate");
-const lblConsoleFor = document.getElementById("lblConsoleFor");
 const lblConnTo = document.getElementById("lblConnTo");
-const table = document.getElementById("fileTable");
 const alertDiv = document.getElementById("alertDiv");
 const debugLogging = document.getElementById("debugLogging");
 const serialLib = !navigator.serial && navigator.usb ? (0, _webSerialPolyfill.serial) : navigator.serial;
@@ -706,28 +698,26 @@ let device = null;
 let transport;
 let chip = null;
 let esploader;
+let defaultBinaryData = null;
 disconnectButton.style.display = "none";
 traceButton.style.display = "none";
 eraseButton.style.display = "none";
-consoleStopButton.style.display = "none";
-resetButton.style.display = "none";
-filesDiv.style.display = "none";
 writeBoardNameButton.style.display = "none";
-/**
- * The built in Event object.
- * @external Event
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Event}
- */ /**
- * File reader handler to read given local file.
- * @param {Event} evt File Select event
- */ function handleFileSelect(evt) {
-    const file = evt.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-        evt.target.data = ev.target.result;
-    };
-    reader.readAsBinaryString(file);
+// Load default binary file
+async function loadDefaultBinary() {
+    console.log("Loading default binary...", (0, _stickemMainMergedBinUrlDefault.default));
+    try {
+        const response = await fetch((0, _stickemMainMergedBinUrlDefault.default));
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        // Convert to binary string
+        let binaryString = '';
+        for(let i = 0; i < uint8Array.length; i++)binaryString += String.fromCharCode(uint8Array[i]);
+        defaultBinaryData = binaryString;
+    } catch (error) {
+        console.error('Failed to load default binary file:', error);
+        term.writeln('Warning: Could not load default binary file stickem_main_merged.bin');
+    }
 }
 const espLoaderTerminal = {
     clean () {
@@ -766,8 +756,6 @@ connectButton.onclick = async ()=>{
         traceButton.style.display = "initial";
         eraseButton.style.display = "initial";
         writeBoardNameButton.style.display = "initial";
-        filesDiv.style.display = "initial";
-        consoleDiv.style.display = "none";
     } catch (e) {
         console.error(e);
         term.writeln(`Error: ${e.message}`);
@@ -775,13 +763,6 @@ connectButton.onclick = async ()=>{
 };
 traceButton.onclick = async ()=>{
     if (transport) transport.returnTrace();
-};
-resetButton.onclick = async ()=>{
-    if (transport) {
-        await transport.setDTR(false);
-        await new Promise((resolve)=>setTimeout(resolve, 100));
-        await transport.setDTR(true);
-    }
 };
 eraseButton.onclick = async ()=>{
     eraseButton.disabled = true;
@@ -804,15 +785,40 @@ writeBoardNameButton.onclick = async ()=>{
         term.writeln("Error: Please connect to device first");
         return;
     }
+    if (!defaultBinaryData) {
+        term.writeln("Error: Default binary file not loaded");
+        return;
+    }
     writeBoardNameButton.disabled = true;
     try {
+        // Step 1: Flash the default binary file to address 0x0
+        term.writeln("Step 1: Flashing default binary to address 0x0...");
+        const binaryFlashOptions = {
+            fileArray: [
+                {
+                    data: defaultBinaryData,
+                    address: 0x0
+                }
+            ],
+            flashSize: "keep",
+            eraseAll: true,
+            compress: true,
+            reportProgress: (fileIndex, written, total)=>{
+                term.write(`Flashing binary: ${Math.round(written / total * 100)}%\r`);
+            },
+            calculateMD5Hash: (image)=>CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image))
+        };
+        await esploader.writeFlash(binaryFlashOptions);
+        term.writeln(`\nDefault binary flashed successfully!`);
+        // Step 2: Write the board name
+        term.writeln("Step 2: Writing board name...");
         // Convert board name to binary data (null-terminated string)
         const encoder = new TextEncoder();
         const boardNameBytes = encoder.encode(boardName + '\0');
         // Create a binary string from the bytes
         let binaryString = '';
         for(let i = 0; i < boardNameBytes.length; i++)binaryString += String.fromCharCode(boardNameBytes[i]);
-        const flashOptions = {
+        const boardNameFlashOptions = {
             fileArray: [
                 {
                     data: binaryString,
@@ -827,66 +833,24 @@ writeBoardNameButton.onclick = async ()=>{
             },
             calculateMD5Hash: (image)=>CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image))
         };
-        term.writeln(`Writing board name "${boardName}" to address 0x150000...`);
-        await esploader.writeFlash(flashOptions);
-        term.writeln(`Board name written successfully!`);
+        await esploader.writeFlash(boardNameFlashOptions);
+        term.writeln(`\nBoard name "${boardName}" written successfully!`);
+        // Step 3: Reset the device
+        term.writeln("Step 3: Resetting device...");
+        if (transport) {
+            await transport.setDTR(false);
+            await new Promise((resolve)=>setTimeout(resolve, 100));
+            await transport.setDTR(true);
+        }
+        term.writeln("Device reset completed!");
+        term.writeln("Flash & Write Board Name completed successfully!");
     } catch (e) {
         console.error(e);
-        term.writeln(`Error writing board name: ${e.message}`);
+        term.writeln(`Error during flash & write: ${e.message}`);
     } finally{
         writeBoardNameButton.disabled = false;
     }
 };
-addFileButton.onclick = ()=>{
-    const rowCount = table.rows.length;
-    const row = table.insertRow(rowCount);
-    //Column 1 - Offset
-    const cell1 = row.insertCell(0);
-    const element1 = document.createElement("input");
-    element1.type = "text";
-    element1.id = "offset" + rowCount;
-    element1.value = "0x1000";
-    cell1.appendChild(element1);
-    // Column 2 - File selector
-    const cell2 = row.insertCell(1);
-    const element2 = document.createElement("input");
-    element2.type = "file";
-    element2.id = "selectFile" + rowCount;
-    element2.name = "selected_File" + rowCount;
-    element2.addEventListener("change", handleFileSelect, false);
-    cell2.appendChild(element2);
-    // Column 3  - Progress
-    const cell3 = row.insertCell(2);
-    cell3.classList.add("progress-cell");
-    cell3.style.display = "none";
-    cell3.innerHTML = `<progress value="0" max="100"></progress>`;
-    // Column 4  - Remove File
-    const cell4 = row.insertCell(3);
-    cell4.classList.add("action-cell");
-    if (rowCount > 1) {
-        const element4 = document.createElement("input");
-        element4.type = "button";
-        const btnName = "button" + rowCount;
-        element4.name = btnName;
-        element4.setAttribute("class", "btn");
-        element4.setAttribute("value", "Remove"); // or element1.value = "button";
-        element4.onclick = function() {
-            removeRow(row);
-        };
-        cell4.appendChild(element4);
-    }
-};
-/**
- * The built in HTMLTableRowElement object.
- * @external HTMLTableRowElement
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLTableRowElement}
- */ /**
- * Remove file row from HTML Table
- * @param {HTMLTableRowElement} row Table row element to remove
- */ function removeRow(row) {
-    const rowIndex = Array.from(table.rows).indexOf(row);
-    table.deleteRow(rowIndex);
-}
 /**
  * Clean devices variables on chip disconnect. Remove stale references if any.
  */ function cleanUp() {
@@ -899,136 +863,19 @@ disconnectButton.onclick = async ()=>{
     term.reset();
     lblBaudrate.style.display = "initial";
     baudrates.style.display = "initial";
-    consoleBaudrates.style.display = "initial";
     connectButton.style.display = "initial";
     disconnectButton.style.display = "none";
     traceButton.style.display = "none";
     eraseButton.style.display = "none";
     writeBoardNameButton.style.display = "none";
     lblConnTo.style.display = "none";
-    filesDiv.style.display = "none";
     alertDiv.style.display = "none";
-    consoleDiv.style.display = "initial";
     cleanUp();
 };
-let isConsoleClosed = false;
-consoleStartButton.onclick = async ()=>{
-    if (device === null) {
-        device = await serialLib.requestPort({});
-        transport = new (0, _lib.Transport)(device, true);
-    }
-    lblConsoleFor.style.display = "block";
-    lblConsoleBaudrate.style.display = "none";
-    consoleBaudrates.style.display = "none";
-    consoleStartButton.style.display = "none";
-    consoleStopButton.style.display = "initial";
-    resetButton.style.display = "initial";
-    programDiv.style.display = "none";
-    await transport.connect(parseInt(consoleBaudrates.value));
-    isConsoleClosed = false;
-    while(!isConsoleClosed){
-        const readLoop = transport.rawRead();
-        const { value, done } = await readLoop.next();
-        if (done || !value) break;
-        term.write(value);
-    }
-    console.log("quitting console");
-};
-consoleStopButton.onclick = async ()=>{
-    isConsoleClosed = true;
-    if (transport) {
-        await transport.disconnect();
-        await transport.waitForUnlock(1500);
-    }
-    term.reset();
-    lblConsoleBaudrate.style.display = "initial";
-    consoleBaudrates.style.display = "initial";
-    consoleStartButton.style.display = "initial";
-    consoleStopButton.style.display = "none";
-    resetButton.style.display = "none";
-    lblConsoleFor.style.display = "none";
-    programDiv.style.display = "initial";
-    cleanUp();
-};
-/**
- * Validate the provided files images and offset to see if they're valid.
- * @returns {string} Program input validation result
- */ function validateProgramInputs() {
-    const offsetArr = [];
-    const rowCount = table.rows.length;
-    let row;
-    let offset = 0;
-    let fileData = null;
-    // check for mandatory fields
-    for(let index = 1; index < rowCount; index++){
-        row = table.rows[index];
-        //offset fields checks
-        const offSetObj = row.cells[0].childNodes[0];
-        offset = parseInt(offSetObj.value);
-        // Non-numeric or blank offset
-        if (Number.isNaN(offset)) return "Offset field in row " + index + " is not a valid address!";
-        else if (offsetArr.includes(offset)) return "Offset field in row " + index + " is already in use!";
-        else offsetArr.push(offset);
-        const fileObj = row.cells[1].childNodes[0];
-        fileData = fileObj.data;
-        if (fileData == null) return "No file selected for row " + index + "!";
-    }
-    return "success";
-}
-programButton.onclick = async ()=>{
-    const alertMsg = document.getElementById("alertmsg");
-    const err = validateProgramInputs();
-    if (err != "success") {
-        alertMsg.innerHTML = "<strong>" + err + "</strong>";
-        alertDiv.style.display = "block";
-        return;
-    }
-    // Hide error message
-    alertDiv.style.display = "none";
-    const fileArray = [];
-    const progressBars = [];
-    for(let index = 1; index < table.rows.length; index++){
-        const row = table.rows[index];
-        const offSetObj = row.cells[0].childNodes[0];
-        const offset = parseInt(offSetObj.value);
-        const fileObj = row.cells[1].childNodes[0];
-        const progressBar = row.cells[2].childNodes[0];
-        progressBar.textContent = "0";
-        progressBars.push(progressBar);
-        row.cells[2].style.display = "initial";
-        row.cells[3].style.display = "none";
-        fileArray.push({
-            data: fileObj.data,
-            address: offset
-        });
-    }
-    try {
-        const flashOptions = {
-            fileArray: fileArray,
-            flashSize: "keep",
-            eraseAll: false,
-            compress: true,
-            reportProgress: (fileIndex, written, total)=>{
-                progressBars[fileIndex].value = written / total * 100;
-            },
-            calculateMD5Hash: (image)=>CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image))
-        };
-        await esploader.writeFlash(flashOptions);
-        await esploader.after();
-    } catch (e) {
-        console.error(e);
-        term.writeln(`Error: ${e.message}`);
-    } finally{
-        // Hide progress bars and show erase buttons
-        for(let index = 1; index < table.rows.length; index++){
-            table.rows[index].cells[2].style.display = "none";
-            table.rows[index].cells[3].style.display = "initial";
-        }
-    }
-};
-addFileButton.onclick(undefined);
+// Initialize default binary loading
+loadDefaultBinary();
 
-},{"../../../lib":"lTweB","web-serial-polyfill":"gtYHv"}],"lTweB":[function(require,module,exports,__globalThis) {
+},{"../../../lib":"lTweB","web-serial-polyfill":"gtYHv","url:./stickem_main_merged.bin?url":"dx0pa","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lTweB":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ESPLoader", ()=>(0, _esploaderJs.ESPLoader));
@@ -8636,6 +8483,9 @@ class SerialPort {
 }
 const serial = new Serial();
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["3dtlh","gH3Lb"], "gH3Lb", "parcelRequire477f", {})
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"dx0pa":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("stickem_main_merged.70307b12.bin") + "?" + Date.now();
+
+},{}]},["3dtlh","gH3Lb"], "gH3Lb", "parcelRequire477f", {}, "./", "/")
 
 //# sourceMappingURL=typescript.34df32e0.js.map

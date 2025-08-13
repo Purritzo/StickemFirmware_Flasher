@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><script type="importmap">{"imports":{"1bb04":"/esp32p4.21e7b28d.js","2Fdp8":"/esp32c6.7c166cfa.js","2S7BN":"/stub_flasher_32c61.17264fbf.js","32YnH":"/esp32h2.4bfd8d83.js","7qKoB":"/stub_flasher_32s2.01a43d6e.js","8Kqap":"/stub_flasher_32c5.47223e1f.js","9W4yu":"/stub_flasher_32s3.f0ca8e02.js","LZulK":"/stub_flasher_32c2.26ac0bc6.js","aokBM":"/stub_flasher_32h2.62b35593.js","b6hLv":"/stub_flasher_32p4.8d0dc649.js","bGNky":"/esp32.1838f4a1.js","c5X0f":"/esp32s3.e53a26a5.js","c9oHh":"/esp32c61.0e158c8e.js","d4fSZ":"/stub_flasher_32c6.d37268f3.js","emDci":"/esp8266.8144c407.js","gWzD0":"/esp32c2.507ffb0c.js","gzdNH":"/stub_flasher_32.712c5267.js","jKxNt":"/stub_flasher_32c3.3e192e6c.js","jNea7":"/esp32s2.0e89ee08.js","jcksm":"/stub_flasher_8266.2d845ba4.js","jq6w6":"/esp32c5.d95683c7.js","lePQg":"/esp32c3.cccaf947.js"}}</script>
+<!DOCTYPE html><html><head><script type="importmap">{"imports":{"1bb04":"/esp32p4.21e7b28d.js","2Fdp8":"/esp32c6.7c166cfa.js","2S7BN":"/stub_flasher_32c61.17264fbf.js","32YnH":"/esp32h2.4bfd8d83.js","7qKoB":"/stub_flasher_32s2.01a43d6e.js","8Kqap":"/stub_flasher_32c5.47223e1f.js","9W4yu":"/stub_flasher_32s3.f0ca8e02.js","LZulK":"/stub_flasher_32c2.26ac0bc6.js","aokBM":"/stub_flasher_32h2.62b35593.js","b6hLv":"/stub_flasher_32p4.8d0dc649.js","bGNky":"/esp32.1838f4a1.js","c5X0f":"/esp32s3.e53a26a5.js","c9oHh":"/esp32c61.0e158c8e.js","d4fSZ":"/stub_flasher_32c6.d37268f3.js","emDci":"/esp8266.8144c407.js","gWzD0":"/esp32c2.507ffb0c.js","gzdNH":"/stub_flasher_32.712c5267.js","jKxNt":"/stub_flasher_32c3.3e192e6c.js","jNea7":"/esp32s2.0e89ee08.js","jcksm":"/stub_flasher_8266.2d845ba4.js","jfbLl":"/stickem_main_merged.70307b12.bin","jq6w6":"/esp32c5.d95683c7.js","lePQg":"/esp32c3.cccaf947.js"}}</script>
         <meta charset="utf-8">
         <title>ESP Tool</title>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
@@ -11,7 +11,7 @@
          <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     </head>
     <body>
-        <h1 align="center"><p><img src="./esp-logo.eb848242.png" width="42" height="42" style="vertical-align: middle" crossorigin=""> ESP Tool</p></h1>
+        <h1 align="center"><p><img src="/esp-logo.eb848242.png" width="42" height="42" style="vertical-align: middle" crossorigin=""> ESP Tool</p></h1>
         <h4 align="center">A Serial Flasher utility for Espressif chips</h4>
         <div id="safariErr" style="display: none"><p align="center" style="color: red">This tool is not supported on Safari browser!</p>
         </div>
@@ -30,7 +30,7 @@
                 <label for="baudrates" id="lblBaudrate">Baudrate:</label>
                 <label style="display: none" id="lblConnTo">Connected to device: </label>
                 <select name="baudrates" id="baudrates">
-                    <option value="921600">921600</option>
+                    <!-- <option value="921600">921600</option> -->
                     <option value="460800">460800</option>
                     <option value="230400">230400</option>
                     <option value="115200">115200</option>
@@ -40,7 +40,7 @@
 
                 <label for="boardName">Board Name:</label>
                 <input type="text" id="boardName" placeholder="Enter board name" style="margin-right: 10px">
-                <input class="btn btn-success btn-sm" type="button" id="writeBoardNameButton" value="Write Board Name">
+                <input class="btn btn-success btn-sm" type="button" id="writeBoardNameButton" value="Flash &amp; Write Board Name">
 
                 <br><br>
 
@@ -55,43 +55,11 @@
                     <span id="alertmsg"></span>
                 </div>
 
-                <div id="files">
-                    <table class="table table-striped" id="fileTable">
-                        <thead class="thead-light">
-                            <tr>
-                                <th>Flash Address</th>
-                                <th>File</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                        </tbody>
-                    </table>
-                    <input class="btn btn-info btn-sm" type="button" id="addFile" value="Add File">
-                    <input class="btn btn-info btn-sm" type="button" id="programButton" value="Program">
-                </div>
-                <output id="list"></output>
-                <hr>
-            </div>
-            <div id="console">
-                <h3>Console </h3>
-                <label style="display: none" id="lblConsoleFor">Connected to device: </label>
-                <label for="consoleBaudrates" id="lblConsoleBaudrate">Baudrate:</label>
-                <select name="consoleBaudrates" id="consoleBaudrates">
-                    <option value="115200">115200</option>
-                    <option value="74880">74880</option>
-                </select>
-
-                <br><br>
-
-                <input class="btn btn-info" type="button" id="consoleStartButton" value="Start">
-                <input class="btn btn-info" type="button" id="consoleStopButton" value="Stop">
-                <input class="btn btn-info" type="button" id="resetButton" value="Reset">
                 <hr>
             </div>
             <div id="terminal"></div>
         </div>
-        <script src="./typescript.34df32e0.js" type="module"></script>
+        <script src="/typescript.34df32e0.js" type="module"></script>
         <script>// Safari 3.0+ "[object HTMLElementConstructor]"
 var isSafari = /constructor/i.test(window.HTMLElement) || function(p) {
     return p.toString() === "[object SafariRemoteNotification]";
