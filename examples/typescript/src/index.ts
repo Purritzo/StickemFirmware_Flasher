@@ -1,20 +1,13 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
-const consoleBaudrates = document.getElementById("consoleBaudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const traceButton = document.getElementById("copyTraceButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
-const resetButton = document.getElementById("resetButton") as HTMLButtonElement;
-const consoleStartButton = document.getElementById("consoleStartButton") as HTMLButtonElement;
-const consoleStopButton = document.getElementById("consoleStopButton") as HTMLButtonElement;
 const eraseButton = document.getElementById("eraseButton") as HTMLButtonElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
-const consoleDiv = document.getElementById("console");
 const lblBaudrate = document.getElementById("lblBaudrate");
-const lblConsoleBaudrate = document.getElementById("lblConsoleBaudrate");
-const lblConsoleFor = document.getElementById("lblConsoleFor");
 const lblConnTo = document.getElementById("lblConnTo");
 const alertDiv = document.getElementById("alertDiv");
 
@@ -44,8 +37,6 @@ let defaultBinaryData: string = null;
 disconnectButton.style.display = "none";
 traceButton.style.display = "none";
 eraseButton.style.display = "none";
-consoleStopButton.style.display = "none";
-resetButton.style.display = "none";
 writeBoardNameButton.style.display = "none";
 
 
@@ -109,7 +100,6 @@ connectButton.onclick = async () => {
     traceButton.style.display = "initial";
     eraseButton.style.display = "initial";
     writeBoardNameButton.style.display = "initial";
-    consoleDiv.style.display = "none";
   } catch (e) {
     console.error(e);
     term.writeln(`Error: ${e.message}`);
@@ -122,13 +112,6 @@ traceButton.onclick = async () => {
   }
 };
 
-resetButton.onclick = async () => {
-  if (transport) {
-    await transport.setDTR(false);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    await transport.setDTR(true);
-  }
-};
 
 eraseButton.onclick = async () => {
   eraseButton.disabled = true;
@@ -205,6 +188,16 @@ writeBoardNameButton.onclick = async () => {
     
     await esploader.writeFlash(boardNameFlashOptions);
     term.writeln(`\nBoard name "${boardName}" written successfully!`);
+    
+    // Step 3: Reset the device
+    term.writeln("Step 3: Resetting device...");
+    if (transport) {
+      await transport.setDTR(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await transport.setDTR(true);
+    }
+    term.writeln("Device reset completed!");
+    
     term.writeln("Flash & Write Board Name completed successfully!");
   } catch (e) {
     console.error(e);
@@ -231,7 +224,6 @@ disconnectButton.onclick = async () => {
   term.reset();
   lblBaudrate.style.display = "initial";
   baudrates.style.display = "initial";
-  consoleBaudrates.style.display = "initial";
   connectButton.style.display = "initial";
   disconnectButton.style.display = "none";
   traceButton.style.display = "none";
@@ -239,55 +231,9 @@ disconnectButton.onclick = async () => {
   writeBoardNameButton.style.display = "none";
   lblConnTo.style.display = "none";
   alertDiv.style.display = "none";
-  consoleDiv.style.display = "initial";
   cleanUp();
 };
 
-let isConsoleClosed = false;
-consoleStartButton.onclick = async () => {
-  if (device === null) {
-    device = await serialLib.requestPort({});
-    transport = new Transport(device, true);
-  }
-  lblConsoleFor.style.display = "block";
-  lblConsoleBaudrate.style.display = "none";
-  consoleBaudrates.style.display = "none";
-  consoleStartButton.style.display = "none";
-  consoleStopButton.style.display = "initial";
-  resetButton.style.display = "initial";
-  programDiv.style.display = "none";
-
-  await transport.connect(parseInt(consoleBaudrates.value));
-  isConsoleClosed = false;
-
-  while (true && !isConsoleClosed) {
-    const readLoop = transport.rawRead();
-    const { value, done } = await readLoop.next();
-
-    if (done || !value) {
-      break;
-    }
-    term.write(value);
-  }
-  console.log("quitting console");
-};
-
-consoleStopButton.onclick = async () => {
-  isConsoleClosed = true;
-  if (transport) {
-    await transport.disconnect();
-    await transport.waitForUnlock(1500);
-  }
-  term.reset();
-  lblConsoleBaudrate.style.display = "initial";
-  consoleBaudrates.style.display = "initial";
-  consoleStartButton.style.display = "initial";
-  consoleStopButton.style.display = "none";
-  resetButton.style.display = "none";
-  lblConsoleFor.style.display = "none";
-  programDiv.style.display = "initial";
-  cleanUp();
-};
 
 
 
