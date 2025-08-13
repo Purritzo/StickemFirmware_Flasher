@@ -32,7 +32,7 @@ jobs:
     - name: Install TypeScript example dependencies
       run: |
         cd examples/typescript
-        npm ci
+        npm install
 
     - name: Build TypeScript example for GitHub Pages
       run: |
