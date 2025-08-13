@@ -11,6 +11,8 @@
     "genDocs:root": "cd ../.. && npm run genDocs",
     "parcel:dev": "cross-env PARCEL_WORKERS=0 parcel src/index.html",
     "parcel:build": "cross-env PARCEL_WORKERS=0 parcel build src/index.html --no-optimize --public-url ./",
+    "build:gh-pages": "npm-run-all clean genDocs parcel:build fix-paths",
+    "fix-paths": "node fix-paths.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "parcelIgnore": [

@@ -1,0 +1,51 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          package-lock.json
+          examples/typescript/package-lock.json
+
+    - name: Install root dependencies
+      run: npm ci
+
+    - name: Build root project
+      run: npm run build
+
+    - name: Install TypeScript example dependencies
+      run: |
+        cd examples/typescript
+        npm ci
+
+    - name: Build TypeScript example for GitHub Pages
+      run: |
+        cd examples/typescript
+        npm run build:gh-pages
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./examples/typescript/dist
+        # Keep the history of gh-pages branch
+        keep_files: false
+        # Custom commit message
+        commit_message: 'Deploy: ${{ github.event.head_commit.message }}'
