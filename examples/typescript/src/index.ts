@@ -22,6 +22,19 @@ import { serial } from "web-serial-polyfill";
 import binaryFileUrl from 'url:./stickem_main_merged.bin?url';
 import connectionDialogUrl from 'url:./Connection_Dialog.png?url';
 
+// Check Web Serial API support immediately on load
+if (!('serial' in navigator)) {
+  const alertDiv = document.getElementById("alertDiv");
+  const alertMsg = document.getElementById("alertmsg");
+  alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
+  alertDiv.style.display = "block";
+  
+  // Disable connect functionality
+  const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
+  connectButton.disabled = true;
+  connectButton.title = "Web Serial API not supported";
+}
+
 const serialLib = !navigator.serial && navigator.usb ? serial : navigator.serial;
 
 declare let Terminal; // Terminal is imported in HTML script

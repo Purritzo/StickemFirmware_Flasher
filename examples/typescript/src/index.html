@@ -96,7 +96,6 @@
          <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     </head>
     <body>
-        <div id="safariErr" style="display:none"><p align="center" style="color:red">This tool is not supported on Safari browser!</p>
         </div>
         <header style="background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #dee2e6; margin-bottom: 5px;">
             <div class="container">
@@ -150,12 +149,28 @@
         <script src="index.ts" type="module"></script>
         <script>
             // Safari 3.0+ "[object HTMLElementConstructor]"
-            var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return p.toString() === "[object SafariRemoteNotification]"; })(!window['safari'] || (typeof safari !== 'undefined' && window['safari'].pushNotification));
+            //var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return p.toString() === "[object SafariRemoteNotification]"; })(!window['safari'] || (typeof safari !== 'undefined' && window['safari'].pushNotification));
 
-            if(isSafari)
-            {
-               document.getElementById("safariErr").style.display = "inline";
-               document.getElementById("main").style.display = "none";
+            //if(isSafari)
+            //{
+            //   document.getElementById("safariErr").style.display = "inline";
+            //   document.getElementById("main").style.display = "none";
+            //}
+
+            // Check Web Serial API support
+            if (!('serial' in navigator)) {
+                var alertDiv = document.getElementById("alertDiv");
+                var alertMsg = document.getElementById("alertmsg");
+                if (alertDiv && alertMsg) {
+                    alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
+                    alertDiv.style.display = "block";
+                }
+                
+                var connectButton = document.getElementById("connectButton");
+                if (connectButton) {
+                    connectButton.disabled = true;
+                    connectButton.title = "Web Serial API not supported";
+                }
             }
         </script>
     </body>
