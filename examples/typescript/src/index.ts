@@ -11,7 +11,6 @@ const lblBaudrate = document.getElementById("lblBaudrate");
 const lblConnTo = document.getElementById("lblConnTo");
 const alertDiv = document.getElementById("alertDiv");
 
-const debugLogging = document.getElementById("debugLogging") as HTMLInputElement;
 
 // This is a frontend example of Esptool-JS using local bundle file
 // To optimize use a CDN hosted version like
@@ -82,7 +81,7 @@ connectButton.onclick = async () => {
       transport,
       baudrate: parseInt(baudrates.value),
       terminal: espLoaderTerminal,
-      debugLogging: debugLogging.checked,
+      debugLogging: false,
     } as LoaderOptions;
     esploader = new ESPLoader(flashOptions);
 
