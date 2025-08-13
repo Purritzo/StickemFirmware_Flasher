@@ -5,6 +5,7 @@ const disconnectButton = document.getElementById("disconnectButton") as HTMLButt
 const eraseButton = document.getElementById("eraseButton") as HTMLButtonElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
+const boardNameSection = document.getElementById("boardNameSection");
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
 const lblBaudrate = document.getElementById("lblBaudrate");
@@ -36,7 +37,7 @@ let defaultBinaryData: string = null;
 disconnectButton.style.display = "none";
 traceButton.style.display = "none";
 eraseButton.style.display = "none";
-writeBoardNameButton.style.display = "none";
+// Board name section is hidden by default in HTML
 
 
 // Load default binary file
@@ -98,7 +99,7 @@ connectButton.onclick = async () => {
     disconnectButton.style.display = "initial";
     traceButton.style.display = "initial";
     eraseButton.style.display = "initial";
-    writeBoardNameButton.style.display = "initial";
+    boardNameSection.style.display = "block";
   } catch (e) {
     console.error(e);
     term.writeln(`Error: ${e.message}`);
@@ -227,7 +228,7 @@ disconnectButton.onclick = async () => {
   disconnectButton.style.display = "none";
   traceButton.style.display = "none";
   eraseButton.style.display = "none";
-  writeBoardNameButton.style.display = "none";
+  boardNameSection.style.display = "none";
   lblConnTo.style.display = "none";
   alertDiv.style.display = "none";
   cleanUp();
