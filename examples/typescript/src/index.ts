@@ -1,8 +1,6 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
-const traceButton = document.getElementById("copyTraceButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
-const eraseButton = document.getElementById("eraseButton") as HTMLButtonElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
 const boardNameSection = document.getElementById("boardNameSection");
@@ -35,8 +33,6 @@ let esploader: ESPLoader;
 let defaultBinaryData: string = null;
 
 disconnectButton.style.display = "none";
-traceButton.style.display = "none";
-eraseButton.style.display = "none";
 // Board name section is hidden by default in HTML
 
 
@@ -97,8 +93,6 @@ connectButton.onclick = async () => {
     baudrates.style.display = "none";
     connectButton.style.display = "none";
     disconnectButton.style.display = "initial";
-    traceButton.style.display = "initial";
-    eraseButton.style.display = "initial";
     boardNameSection.style.display = "block";
   } catch (e) {
     console.error(e);
@@ -106,24 +100,6 @@ connectButton.onclick = async () => {
   }
 };
 
-traceButton.onclick = async () => {
-  if (transport) {
-    transport.returnTrace();
-  }
-};
-
-
-eraseButton.onclick = async () => {
-  eraseButton.disabled = true;
-  try {
-    await esploader.eraseFlash();
-  } catch (e) {
-    console.error(e);
-    term.writeln(`Error: ${e.message}`);
-  } finally {
-    eraseButton.disabled = false;
-  }
-};
 
 writeBoardNameButton.onclick = async () => {
   const boardName = boardNameInput.value.trim();
@@ -226,8 +202,6 @@ disconnectButton.onclick = async () => {
   baudrates.style.display = "initial";
   connectButton.style.display = "initial";
   disconnectButton.style.display = "none";
-  traceButton.style.display = "none";
-  eraseButton.style.display = "none";
   boardNameSection.style.display = "none";
   lblConnTo.style.display = "none";
   alertDiv.style.display = "none";
