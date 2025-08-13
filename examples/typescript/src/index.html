@@ -10,20 +10,103 @@
             rel="stylesheet"
         />
         <link rel="icon" href="../assets/favicon.ico" />
+        <style>
+            #steps {
+                margin: 20px 0;
+            }
+            
+            .step-display {
+                position: relative;
+                padding: 15px;
+                background-color: #f8f9fa;
+                border-radius: 5px;
+                border: 1px solid #dee2e6;
+                text-align: left;
+                min-height: 170px; /* Consistent height for all steps */
+                display: flex;
+                align-items: flex-start;
+            }
+            
+            .step-content {
+                font-size: 16px;
+                font-weight: 500;
+                color: #495057;
+                flex: 1;
+                padding-right: 100px; /* Space for navigation arrows */
+                white-space: pre-line; /* Preserves newlines and wraps text */
+            }
+            
+            .step-image {
+                max-width: 100%;
+                height: 200px;
+                margin: 10px 0;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .step-navigation-arrows {
+                position: absolute;
+                bottom: 15px;
+                right: 15px;
+                display: flex;
+                gap: 10px;
+                z-index: 10;
+            }
+            
+            #prevStep, #nextStep {
+                width: 45px;
+                height: 45px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                font-weight: bold;
+                border-radius: 50%;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                border: 2px solid #6c757d;
+            }
+            
+            #prevStep:hover, #nextStep:hover {
+                background-color: #5a6268;
+                border-color: #545b62;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            }
+            
+            #prevStep:disabled, #nextStep:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            }
+            
+            #prevStep:disabled:hover, #nextStep:disabled:hover {
+                background-color: #6c757d;
+                border-color: #6c757d;
+            }
+        </style>
          <script src="https://cdn.jsdelivr.net/npm/xterm@4.19.0/lib/xterm.min.js"></script>
          <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.js"></script>
          <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
          <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     </head>
     <body>
-        <h1 align="center"><p><img src="../assets/esp-logo.png" width="42" height="42" style="vertical-align:middle" crossorigin></img> ESP Tool</p></h1>
-        <h4 align="center">A Serial Flasher utility for Espressif chips</h4>
         <div id="safariErr" style="display:none"><p align="center" style="color:red">This tool is not supported on Safari browser!</p>
         </div>
         <div class="container" id="main">
             <hr/>
+            <div id="steps">
+                <div class="step-display">
+                    <span id="stepContent" class="step-content">Step 1: Connect the ESP Board to your laptop using a data cable.</span>
+                    <!-- Step navigation arrows at bottom right of step content -->
+                    <div class="step-navigation-arrows">
+                        <button id="prevStep" class="btn btn-secondary btn-sm">←</button>
+                        <button id="nextStep" class="btn btn-secondary btn-sm">→</button>
+                    </div>
+                </div>
+            </div>
             <div id="program">
-                <h3> Program </h3>
                 <label for="baudrates" id="lblBaudrate">Baudrate:</label>
                 <label style="display:none" id="lblConnTo">Connected to device: </label>
                 <select name="baudrates" id="baudrates">

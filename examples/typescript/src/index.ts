@@ -1,6 +1,9 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
+const prevStepButton = document.getElementById("prevStep") as HTMLButtonElement;
+const nextStepButton = document.getElementById("nextStep") as HTMLButtonElement;
+const stepContent = document.getElementById("stepContent") as HTMLSpanElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
 const boardNameSection = document.getElementById("boardNameSection");
@@ -17,6 +20,7 @@ const alertDiv = document.getElementById("alertDiv");
 import { ESPLoader, FlashOptions, LoaderOptions, Transport } from "../../../lib";
 import { serial } from "web-serial-polyfill";
 import binaryFileUrl from 'url:./stickem_main_merged.bin?url';
+import connectionDialogUrl from 'url:./Connection_Dialog.png?url';
 
 const serialLib = !navigator.serial && navigator.usb ? serial : navigator.serial;
 
@@ -35,6 +39,47 @@ let defaultBinaryData: string = null;
 disconnectButton.style.display = "none";
 // Board name section is hidden by default in HTML
 
+// Step navigation system
+const steps = [
+  `Step 1: Connect the ESP Board to your laptop using a data cable.`,
+  
+  `Step 2: Select the appropriate baudrate and click 'Connect' to establish connection with the ESP board.<br>
+  A connection dialog will appear with ports to select. Click on the port and then the "Connect" button.
+  If you are unsure, disconnect and reconnect the ESP Board when this dialog is open, and choose the port that appears.<br>
+  If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
+  //<img src="${connectionDialogUrl}" alt="Connection Dialog" class="step-image">`,
+  
+  `Step 3: Once connected, enter a board name and click 'Flash & Write Board Name' to program the device. <br>
+  If there are errors, try again from Step 1 but with a lower baud rate.`,
+  
+  `Step 4: Wait for the flashing process to complete. The device will reset automatically when finished.<br><br>
+  Once the terminal says to do so, click on the "Disconnect" button.`
+];
+
+let currentStep = 0;
+
+function updateStepDisplay() {
+  stepContent.innerHTML = steps[currentStep];
+  prevStepButton.disabled = currentStep === 0;
+  nextStepButton.disabled = currentStep === steps.length - 1;
+}
+
+prevStepButton.onclick = () => {
+  if (currentStep > 0) {
+    currentStep--;
+    updateStepDisplay();
+  }
+};
+
+nextStepButton.onclick = () => {
+  if (currentStep < steps.length - 1) {
+    currentStep++;
+    updateStepDisplay();
+  }
+};
+
+// Initialize step display
+updateStepDisplay();
 
 // Load default binary file
 async function loadDefaultBinary() {
@@ -173,6 +218,7 @@ writeBoardNameButton.onclick = async () => {
       await transport.setDTR(true);
     }
     term.writeln("Device reset completed!");
+    term.writeln("You can now click 'Disconnect' to finish.");
     
     term.writeln("Flash & Write Board Name completed successfully!");
   } catch (e) {
