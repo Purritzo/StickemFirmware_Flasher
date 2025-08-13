@@ -41,9 +41,9 @@ disconnectButton.style.display = "none";
 
 // Step navigation system
 const steps = [
-  `Step 1: Connect the ESP Board to your laptop using a data cable.`,
+  `Step 1: Connect the Electronics Board to your laptop using a data cable.`,
   
-  `Step 2: Click 'Connect' to establish connection with the ESP board.<br>
+  `Step 2: Click 'Connect' to establish connection with the Electronics Board.<br>
   A connection dialog will appear with ports to select. Click on the port and then the "Connect" button.
   If you are unsure, disconnect and reconnect the ESP Board when this dialog is open, and choose the port that appears.<br>
   If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
