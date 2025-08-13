@@ -677,21 +677,22 @@ var _stickemMainMergedBinUrl = require("url:./stickem_main_merged.bin?url");
 var _stickemMainMergedBinUrlDefault = parcelHelpers.interopDefault(_stickemMainMergedBinUrl);
 const baudrates = document.getElementById("baudrates");
 const connectButton = document.getElementById("connectButton");
-const traceButton = document.getElementById("copyTraceButton");
 const disconnectButton = document.getElementById("disconnectButton");
-const eraseButton = document.getElementById("eraseButton");
+const prevStepButton = document.getElementById("prevStep");
+const nextStepButton = document.getElementById("nextStep");
+const stepContent = document.getElementById("stepContent");
 const boardNameInput = document.getElementById("boardName");
 const writeBoardNameButton = document.getElementById("writeBoardNameButton");
+const boardNameSection = document.getElementById("boardNameSection");
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
 const lblBaudrate = document.getElementById("lblBaudrate");
 const lblConnTo = document.getElementById("lblConnTo");
 const alertDiv = document.getElementById("alertDiv");
-const debugLogging = document.getElementById("debugLogging");
 const serialLib = !navigator.serial && navigator.usb ? (0, _webSerialPolyfill.serial) : navigator.serial;
 const term = new Terminal({
     cols: 120,
-    rows: 40
+    rows: 30
 });
 term.open(terminal);
 let device = null;
@@ -700,9 +701,40 @@ let chip = null;
 let esploader;
 let defaultBinaryData = null;
 disconnectButton.style.display = "none";
-traceButton.style.display = "none";
-eraseButton.style.display = "none";
-writeBoardNameButton.style.display = "none";
+// Board name section is hidden by default in HTML
+// Step navigation system
+const steps = [
+    `Step 1: Connect the ESP Board to your laptop using a data cable.`,
+    `Step 2: Click 'Connect' to establish connection with the ESP board.<br>
+  A connection dialog will appear with ports to select. Click on the port and then the "Connect" button.
+  If you are unsure, disconnect and reconnect the ESP Board when this dialog is open, and choose the port that appears.<br>
+  If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
+    //<img src="${connectionDialogUrl}" alt="Connection Dialog" class="step-image">`,
+    `Step 3: Once connected, enter a board name and click 'Flash & Write Board Name' to program the device. <br>
+  If there are errors, try again from Step 1 but with a lower baud rate.`,
+    `Step 4: Wait for the flashing process to complete. The device will reset automatically when finished.<br><br>
+  Once the terminal says to do so, click on the "Disconnect" button.`
+];
+let currentStep = 0;
+function updateStepDisplay() {
+    stepContent.innerHTML = steps[currentStep];
+    prevStepButton.disabled = currentStep === 0;
+    nextStepButton.disabled = currentStep === steps.length - 1;
+}
+prevStepButton.onclick = ()=>{
+    if (currentStep > 0) {
+        currentStep--;
+        updateStepDisplay();
+    }
+};
+nextStepButton.onclick = ()=>{
+    if (currentStep < steps.length - 1) {
+        currentStep++;
+        updateStepDisplay();
+    }
+};
+// Initialize step display
+updateStepDisplay();
 // Load default binary file
 async function loadDefaultBinary() {
     console.log("Loading default binary...", (0, _stickemMainMergedBinUrlDefault.default));
@@ -740,7 +772,7 @@ connectButton.onclick = async ()=>{
             transport,
             baudrate: parseInt(baudrates.value),
             terminal: espLoaderTerminal,
-            debugLogging: debugLogging.checked
+            debugLogging: false
         };
         esploader = new (0, _lib.ESPLoader)(flashOptions);
         chip = await esploader.main();
@@ -753,26 +785,10 @@ connectButton.onclick = async ()=>{
         baudrates.style.display = "none";
         connectButton.style.display = "none";
         disconnectButton.style.display = "initial";
-        traceButton.style.display = "initial";
-        eraseButton.style.display = "initial";
-        writeBoardNameButton.style.display = "initial";
+        boardNameSection.style.display = "block";
     } catch (e) {
         console.error(e);
         term.writeln(`Error: ${e.message}`);
-    }
-};
-traceButton.onclick = async ()=>{
-    if (transport) transport.returnTrace();
-};
-eraseButton.onclick = async ()=>{
-    eraseButton.disabled = true;
-    try {
-        await esploader.eraseFlash();
-    } catch (e) {
-        console.error(e);
-        term.writeln(`Error: ${e.message}`);
-    } finally{
-        eraseButton.disabled = false;
     }
 };
 writeBoardNameButton.onclick = async ()=>{
@@ -843,6 +859,7 @@ writeBoardNameButton.onclick = async ()=>{
             await transport.setDTR(true);
         }
         term.writeln("Device reset completed!");
+        term.writeln("You can now click 'Disconnect' to finish.");
         term.writeln("Flash & Write Board Name completed successfully!");
     } catch (e) {
         console.error(e);
@@ -865,9 +882,7 @@ disconnectButton.onclick = async ()=>{
     baudrates.style.display = "initial";
     connectButton.style.display = "initial";
     disconnectButton.style.display = "none";
-    traceButton.style.display = "none";
-    eraseButton.style.display = "none";
-    writeBoardNameButton.style.display = "none";
+    boardNameSection.style.display = "none";
     lblConnTo.style.display = "none";
     alertDiv.style.display = "none";
     cleanUp();

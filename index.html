@@ -5,28 +5,102 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@4.19.0/css/xterm.css">
         <link href="https://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet">
         <link rel="icon" href="/favicon.eee7a1e8.ico">
+        <style>#steps {
+  margin: 20px 0;
+}
+
+.step-display {
+  text-align: left;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  align-items: flex-start;
+  min-height: 170px;
+  padding: 15px;
+  display: flex;
+  position: relative;
+}
+
+.step-content {
+  color: #495057;
+  white-space: pre-line;
+  flex: 1;
+  padding-right: 100px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.step-image {
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  max-width: 100%;
+  height: 200px;
+  margin: 10px 0;
+  box-shadow: 0 2px 4px #0000001a;
+}
+
+.step-navigation-arrows {
+  z-index: 10;
+  gap: 10px;
+  display: flex;
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+}
+
+#prevStep, #nextStep {
+  border: 2px solid #6c757d;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 45px;
+  height: 45px;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  box-shadow: 0 2px 8px #00000026;
+}
+
+#prevStep:hover, #nextStep:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px #0003;
+}
+
+#prevStep:disabled, #nextStep:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 8px #00000026;
+}
+
+#prevStep:disabled:hover, #nextStep:disabled:hover {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}
+</style>
          <script src="https://cdn.jsdelivr.net/npm/xterm@4.19.0/lib/xterm.min.js"></script>
          <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.js"></script>
          <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
          <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
     </head>
     <body>
-        <h1 align="center"><p><img src="./esp-logo.eb848242.png" width="42" height="42" style="vertical-align: middle" crossorigin=""> ESP Tool</p></h1>
-        <h4 align="center">A Serial Flasher utility for Espressif chips</h4>
         <div id="safariErr" style="display: none"><p align="center" style="color: red">This tool is not supported on Safari browser!</p>
         </div>
-        <div align="center">
-            <a class="btn btn-info" href="./docs/index.html">View the API Documentation</a>
-
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="debugLogging" value="">
-                <label class="form-check-label" for="debugLogging">Show Debug log</label>
-            </div>
-          </div>
         <div class="container" id="main">
             <hr>
+            <div id="steps">
+                <div class="step-display">
+                    <span id="stepContent" class="step-content">Step 1: Connect the ESP Board to your laptop using a data cable.</span>
+                    <!-- Step navigation arrows at bottom right of step content -->
+                    <div class="step-navigation-arrows">
+                        <button id="prevStep" class="btn btn-secondary btn-sm">←</button>
+                        <button id="nextStep" class="btn btn-secondary btn-sm">→</button>
+                    </div>
+                </div>
+            </div>
             <div id="program">
-                <h3> Program </h3>
                 <label for="baudrates" id="lblBaudrate">Baudrate:</label>
                 <label style="display: none" id="lblConnTo">Connected to device: </label>
                 <select name="baudrates" id="baudrates">
@@ -36,18 +110,14 @@
                     <option value="115200">115200</option>
                 </select>
 
-                <br><br>
-
-                <label for="boardName">Board Name:</label>
-                <input type="text" id="boardName" placeholder="Enter board name" style="margin-right: 10px">
-                <input class="btn btn-success btn-sm" type="button" id="writeBoardNameButton" value="Flash &amp; Write Board Name">
-
-                <br><br>
+                <div id="boardNameSection" style="display: none">
+                    <label for="boardName">Board Name:</label>
+                    <input type="text" id="boardName" placeholder="Enter board name" style="margin-right: 10px">
+                    <input class="btn btn-success btn-sm" type="button" id="writeBoardNameButton" value="Flash &amp; Write Board Name">
+                </div>
 
                 <input class="btn btn-info btn-sm" type="button" id="connectButton" value="Connect">
-                <input class="btn btn-info btn-sm" type="button" id="copyTraceButton" value="Copy Trace">
-                <input class="btn btn-warning btn-sm" type="button" id="disconnectButton" value="Disconnect">
-                <input class="btn btn-danger btn-sm" type="button" id="eraseButton" value="Erase Flash">
+                <input class="btn btn-danger btn-sm" type="button" id="disconnectButton" value="Disconnect">
                 <br>
 
                 <div class="alert alert-danger alert-dismissible" id="alertDiv" style="margin-top: 10px; display: none">
@@ -59,7 +129,7 @@
             </div>
             <div id="terminal"></div>
         </div>
-        <script src="./typescript.34df32e0.js" type="module"></script>
+        <script src="/typescript.34df32e0.js" type="module"></script>
         <script>// Safari 3.0+ "[object HTMLElementConstructor]"
 var isSafari = /constructor/i.test(window.HTMLElement) || function(p) {
     return p.toString() === "[object SafariRemoteNotification]";
