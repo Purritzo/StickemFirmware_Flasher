@@ -9,6 +9,8 @@ const consoleStopButton = document.getElementById("consoleStopButton") as HTMLBu
 const eraseButton = document.getElementById("eraseButton") as HTMLButtonElement;
 const addFileButton = document.getElementById("addFile") as HTMLButtonElement;
 const programButton = document.getElementById("programButton");
+const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
+const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
 const filesDiv = document.getElementById("files");
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
@@ -47,6 +49,7 @@ eraseButton.style.display = "none";
 consoleStopButton.style.display = "none";
 resetButton.style.display = "none";
 filesDiv.style.display = "none";
+writeBoardNameButton.style.display = "none";
 
 /**
  * The built in Event object.
@@ -111,6 +114,7 @@ connectButton.onclick = async () => {
     disconnectButton.style.display = "initial";
     traceButton.style.display = "initial";
     eraseButton.style.display = "initial";
+    writeBoardNameButton.style.display = "initial";
     filesDiv.style.display = "initial";
     consoleDiv.style.display = "none";
   } catch (e) {
@@ -142,6 +146,53 @@ eraseButton.onclick = async () => {
     term.writeln(`Error: ${e.message}`);
   } finally {
     eraseButton.disabled = false;
+  }
+};
+
+writeBoardNameButton.onclick = async () => {
+  const boardName = boardNameInput.value.trim();
+  
+  if (!boardName) {
+    term.writeln("Error: Please enter a board name");
+    return;
+  }
+
+  if (!esploader) {
+    term.writeln("Error: Please connect to device first");
+    return;
+  }
+
+  writeBoardNameButton.disabled = true;
+  try {
+    // Convert board name to binary data (null-terminated string)
+    const encoder = new TextEncoder();
+    const boardNameBytes = encoder.encode(boardName + '\0');
+    
+    // Create a binary string from the bytes
+    let binaryString = '';
+    for (let i = 0; i < boardNameBytes.length; i++) {
+      binaryString += String.fromCharCode(boardNameBytes[i]);
+    }
+    
+    const flashOptions: FlashOptions = {
+      fileArray: [{ data: binaryString, address: 0x150000 }],
+      flashSize: "keep",
+      eraseAll: false,
+      compress: true,
+      reportProgress: (fileIndex, written, total) => {
+        term.write(`Writing board name: ${Math.round((written / total) * 100)}%\r`);
+      },
+      calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
+    } as FlashOptions;
+    
+    term.writeln(`Writing board name "${boardName}" to address 0x150000...`);
+    await esploader.writeFlash(flashOptions);
+    term.writeln(`Board name written successfully!`);
+  } catch (e) {
+    console.error(e);
+    term.writeln(`Error writing board name: ${e.message}`);
+  } finally {
+    writeBoardNameButton.disabled = false;
   }
 };
 
@@ -224,6 +275,7 @@ disconnectButton.onclick = async () => {
   disconnectButton.style.display = "none";
   traceButton.style.display = "none";
   eraseButton.style.display = "none";
+  writeBoardNameButton.style.display = "none";
   lblConnTo.style.display = "none";
   filesDiv.style.display = "none";
   alertDiv.style.display = "none";
