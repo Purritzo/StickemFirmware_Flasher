@@ -1,5 +1,6 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
+const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
 const prevStepButton = document.getElementById("prevStep") as HTMLButtonElement;
 const nextStepButton = document.getElementById("nextStep") as HTMLButtonElement;
@@ -31,8 +32,11 @@ if (!('serial' in navigator)) {
   
   // Disable connect functionality
   const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
+  const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
   connectButton.disabled = true;
   connectButton.title = "Web Serial API not supported";
+  manualConnectButton.disabled = true;
+  manualConnectButton.title = "Web Serial API not supported";
 }
 
 const serialLib = !navigator.serial && navigator.usb ? serial : navigator.serial;
@@ -54,13 +58,12 @@ disconnectButton.style.display = "none";
 
 // Step navigation system
 const steps = [
-  `Step 1: Connect the Electronics Board to your laptop using a data cable.`,
+  `Step 1: Connect the ESP32 Board to your laptop using a data cable.`,
   
-  `Step 2: Click 'Connect' to establish connection with the Electronics Board.<br>
-  A connection dialog will appear with ports to select. Click on the port and then the "Connect" button.
-  If you are unsure, disconnect and reconnect the ESP Board when this dialog is open, and choose the port that appears.<br>
+  `Step 2: Click 'Auto Connect' for seamless ESP32 detection, or 'Manual Connect' to choose the port yourself.<br>
+  Auto Connect: Automatically finds previously paired ESP32 devices or shows filtered ESP32 options if needed. No manual port selection required for paired devices!<br>
+  Manual Connect: Shows all available ports for manual selection. If unsure which port, disconnect and reconnect the ESP32 Board when the dialog is open.<br>
   If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
-  //<img src="${connectionDialogUrl}" alt="Connection Dialog" class="step-image">`,
   
   `Step 3: Once connected, enter a board name and click 'Flash & Write Board Name' to program the device. <br>
   If there are errors, try again from Step 1 but with a lower baud rate.`,
@@ -126,10 +129,67 @@ const espLoaderTerminal = {
   },
 };
 
-connectButton.onclick = async () => {
+// ESP32 vendor and product IDs for automatic detection
+const ESP32_FILTERS = [
+  { usbVendorId: 0x10C4, usbProductId: 0xEA60 }, // Silicon Labs CP210x
+  { usbVendorId: 0x1A86, usbProductId: 0x7523 }, // QinHeng Electronics CH340
+  { usbVendorId: 0x0403, usbProductId: 0x6001 }, // FTDI FT232R
+  { usbVendorId: 0x0403, usbProductId: 0x6014 }, // FTDI FT232H
+  { usbVendorId: 0x239A, usbProductId: 0x80F4 }, // Adafruit Metro ESP32-S2
+  { usbVendorId: 0x303A, usbProductId: 0x1001 }, // Espressif ESP32-S2
+  { usbVendorId: 0x303A, usbProductId: 0x0002 }, // Espressif ESP32-S3
+];
+
+async function detectESP32Port() {
+  try {
+    // First check for already-paired ESP32 devices
+    const availablePorts = await serialLib.getPorts();
+    
+    for (const port of availablePorts) {
+      const info = port.getInfo();
+      // Check if this port matches our ESP32 filters
+      const isESP32 = ESP32_FILTERS.some(filter => 
+        info.usbVendorId === filter.usbVendorId && 
+        info.usbProductId === filter.usbProductId
+      );
+      
+      if (isESP32) {
+        term.writeln("Found previously paired ESP32 device - connecting automatically!");
+        return port;
+      }
+    }
+    
+    // No paired ESP32 found, request new port with ESP32 filters
+    term.writeln("No paired ESP32 found. Requesting new connection...");
+    const port = await serialLib.requestPort({ filters: ESP32_FILTERS });
+    term.writeln("ESP32 device detected and paired!");
+    return port;
+  } catch (e) {
+    console.log("Auto-detection failed, falling back to manual selection:", e.message);
+    term.writeln("Auto-detection failed. Please manually select the ESP32 port.");
+    
+    // Fallback to manual selection without filters
+    try {
+      const port = await serialLib.requestPort({});
+      term.writeln("Port selected manually.");
+      return port;
+    } catch (manualError) {
+      throw new Error("Port selection cancelled or failed");
+    }
+  }
+}
+
+async function connectToDevice(autoDetect = true) {
   try {
     if (device === null) {
-      device = await serialLib.requestPort({});
+      if (autoDetect) {
+        term.writeln("Attempting to auto-detect ESP32 board...");
+        device = await detectESP32Port();
+      } else {
+        term.writeln("Manual port selection...");
+        device = await serialLib.requestPort({});
+        term.writeln("Port selected manually.");
+      }
       transport = new Transport(device, true);
     }
     const flashOptions = {
@@ -150,12 +210,21 @@ connectButton.onclick = async () => {
     lblConnTo.style.display = "block";
     baudrates.style.display = "none";
     connectButton.style.display = "none";
+    manualConnectButton.style.display = "none";
     disconnectButton.style.display = "initial";
     boardNameSection.style.display = "block";
   } catch (e) {
     console.error(e);
     term.writeln(`Error: ${e.message}`);
   }
+}
+
+connectButton.onclick = async () => {
+  await connectToDevice(true);
+};
+
+manualConnectButton.onclick = async () => {
+  await connectToDevice(false);
 };
 
 
@@ -260,6 +329,7 @@ disconnectButton.onclick = async () => {
   lblBaudrate.style.display = "initial";
   baudrates.style.display = "initial";
   connectButton.style.display = "initial";
+  manualConnectButton.style.display = "initial";
   disconnectButton.style.display = "none";
   boardNameSection.style.display = "none";
   lblConnTo.style.display = "none";
