@@ -40,7 +40,7 @@ const serialLib = !navigator.serial && navigator.usb ? serial : navigator.serial
 declare let Terminal; // Terminal is imported in HTML script
 declare let CryptoJS; // CryptoJS is imported in HTML script
 
-const term = new Terminal({ cols: 120, rows: 30 });
+const term = new Terminal({ cols: 60, rows: 30 });
 term.open(terminal);
 
 let device = null;
