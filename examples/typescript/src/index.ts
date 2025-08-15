@@ -154,8 +154,16 @@ async function detectESP32Port() {
       );
       
       if (isESP32) {
-        term.writeln("Found previously paired ESP32 device - connecting automatically!");
-        return port;
+        // Test if the port is actually still valid before using it
+        try {
+          await port.open({ baudRate: 115200 });
+          await port.close();
+          term.writeln("Found previously paired ESP32 device - connecting automatically!");
+          return port;
+        } catch (testError) {
+          term.writeln("Previously paired device no longer available, scanning for new devices...");
+          continue; // Skip this stale port and continue checking others
+        }
       }
     }
     
