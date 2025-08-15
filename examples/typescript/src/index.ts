@@ -215,7 +215,25 @@ async function connectToDevice(autoDetect = true) {
     boardNameSection.style.display = "block";
   } catch (e) {
     console.error(e);
-    term.writeln(`Error: ${e.message}`);
+    
+    // Handle specific serial port errors
+    if (e.message.includes("Failed to open serial port") || 
+        e.message.includes("InvalidStateError") ||
+        e.message.includes("already open")) {
+      term.writeln(`Serial port error: ${e.message}`);
+      term.writeln("");
+      term.writeln("Common causes and solutions:");
+      term.writeln("• Another tab/window is using this serial port - close other instances");
+      term.writeln("• Port not properly closed - disconnect USB cable and reconnect");
+      term.writeln("• On Linux: wait a few seconds after disconnect before reconnecting");
+      term.writeln("• Try refreshing the page and connecting again");
+      term.writeln("• Try a lower baud rate (115200 instead of 460800)");
+    } else {
+      term.writeln(`Connection error: ${e.message}`);
+    }
+    
+    // Clean up on connection failure
+    cleanUp();
   }
 }
 
