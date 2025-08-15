@@ -350,9 +350,17 @@ function cleanUp() {
 }
 
 disconnectButton.onclick = async () => {
-  if (transport) await transport.disconnect();
+  if (transport) {
+    try {
+      await transport.disconnect();
+      term.writeln("Device disconnected successfully.");
+    } catch (e) {
+      console.warn("Disconnect error (cable may have been unplugged):", e.message);
+      term.writeln("Device was already disconnected (cable unplugged?)");
+    }
+  }
 
-  term.reset();
+  term.writeln("Ready for next connection.");
   lblBaudrate.style.display = "initial";
   baudrates.style.display = "initial";
   connectButton.style.display = "initial";
