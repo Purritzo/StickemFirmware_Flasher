@@ -181,6 +181,7 @@ async function detectESP32Port() {
 
 async function connectToDevice(autoDetect = true) {
   try {
+    device = null // Force re-scan
     if (device === null) {
       if (autoDetect) {
         term.writeln("Attempting to auto-detect ESP32 board...");
