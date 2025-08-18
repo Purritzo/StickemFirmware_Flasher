@@ -1,0 +1,3 @@
+Command is:
+
+esptool --chip esp32 merge_bin -o stickem_main_merged.bin --flash_mode dio --flash_freq 40m --flash_size 4MB 0x1000 stickem_main.ino.bootloader.bin 0x8000 stickem_main.ino.partitions.bin 0xe000 boot_app0.bin 0x10000 stickem_main.ino.bin
