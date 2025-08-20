@@ -65,8 +65,8 @@ const steps = [
   Manual Connect: Shows all available ports for manual selection. If unsure which port, disconnect and reconnect the ESP32 Board when the dialog is open.<br>
   If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
   
-  `Step 3: Once connected, enter a board name and click 'Flash & Write Board Name' to program the device. <br>
-  If there are errors, try again from Step 1 but with a lower baud rate.`,
+  `Step 3: Once connected, optionally enter a board name and click 'Flash Firmware' to program the device. <br>
+  Leave the name field empty to update firmware without changing the name. If there are errors, try again from Step 1 but with a lower baud rate.`,
   
   `Step 4: Wait for the flashing process to complete. The device will reset automatically when finished.<br><br>
   Once the terminal says to do so, click on the "Disconnect" button.`
@@ -187,6 +187,40 @@ async function detectESP32Port() {
   }
 }
 
+async function readExistingBoardName(): Promise<string | null> {
+  if (!esploader) {
+    return null;
+  }
+  
+  try {
+    term.writeln("Reading existing board name...");
+    
+    // Read 64 bytes from the name address (should be enough for most names)
+    const nameData = await esploader.readFlash(0x150000, 64);
+    
+    // Convert Uint8Array to string and find null terminator
+    let nameString = '';
+    for (let i = 0; i < nameData.length; i++) {
+      const byte = nameData[i];
+      if (byte === 0) break; // Null terminator found
+      nameString += String.fromCharCode(byte);
+    }
+    
+    // Check if we got a valid name (not empty and printable characters)
+    if (nameString.length > 0 && /^[\x20-\x7E]*$/.test(nameString)) {
+      term.writeln(`Found existing name: "${nameString}"`);
+      return nameString;
+    } else {
+      term.writeln("No existing name found or name is invalid");
+      return null;
+    }
+  } catch (e) {
+    console.error('Failed to read existing name:', e);
+    term.writeln("Warning: Could not read existing board name");
+    return null;
+  }
+}
+
 async function connectToDevice(autoDetect = true) {
   try {
     device = null // Force re-scan
@@ -257,11 +291,6 @@ manualConnectButton.onclick = async () => {
 
 writeBoardNameButton.onclick = async () => {
   const boardName = boardNameInput.value.trim();
-  
-  if (!boardName) {
-    term.writeln("Error: Please enter a board name");
-    return;
-  }
 
   if (!esploader) {
     term.writeln("Error: Please connect to device first");
@@ -275,6 +304,18 @@ writeBoardNameButton.onclick = async () => {
 
   writeBoardNameButton.disabled = true;
   try {
+    // Step 0: Read existing board name before erasing (if no new name provided)
+    let nameToWrite = boardName;
+    if (!boardName) {
+      const existingName = await readExistingBoardName();
+      if (existingName) {
+        nameToWrite = existingName;
+        term.writeln(`Will preserve existing name: "${existingName}"`);
+      } else {
+        term.writeln("No existing name to preserve");
+      }
+    }
+    
     // Step 1: Flash the default binary file to address 0x0
     term.writeln("Step 1: Flashing default binary to address 0x0...");
     
@@ -292,32 +333,40 @@ writeBoardNameButton.onclick = async () => {
     await esploader.writeFlash(binaryFlashOptions);
     term.writeln(`\nDefault binary flashed successfully!`);
     
-    // Step 2: Write the board name
-    term.writeln("Step 2: Writing board name...");
-    
-    // Convert board name to binary data (null-terminated string)
-    const encoder = new TextEncoder();
-    const boardNameBytes = encoder.encode(boardName + '\0');
-    
-    // Create a binary string from the bytes
-    let binaryString = '';
-    for (let i = 0; i < boardNameBytes.length; i++) {
-      binaryString += String.fromCharCode(boardNameBytes[i]);
+    // Step 2: Write the board name (use new name or preserved existing name)
+    if (nameToWrite) {
+      if (boardName) {
+        term.writeln("Step 2: Writing new board name...");
+      } else {
+        term.writeln("Step 2: Restoring preserved board name...");
+      }
+      
+      // Convert board name to binary data (null-terminated string)
+      const encoder = new TextEncoder();
+      const boardNameBytes = encoder.encode(nameToWrite + '\0');
+      
+      // Create a binary string from the bytes
+      let binaryString = '';
+      for (let i = 0; i < boardNameBytes.length; i++) {
+        binaryString += String.fromCharCode(boardNameBytes[i]);
+      }
+      
+      const boardNameFlashOptions: FlashOptions = {
+        fileArray: [{ data: binaryString, address: 0x150000 }],
+        flashSize: "keep",
+        eraseAll: false,
+        compress: true,
+        reportProgress: (fileIndex, written, total) => {
+          term.write(`Writing board name: ${Math.round((written / total) * 100)}%\r`);
+        },
+        calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
+      } as FlashOptions;
+      
+      await esploader.writeFlash(boardNameFlashOptions);
+      term.writeln(`\nBoard name "${nameToWrite}" written successfully!`);
+    } else {
+      term.writeln("Step 2: No name to write (no existing name found and none provided)");
     }
-    
-    const boardNameFlashOptions: FlashOptions = {
-      fileArray: [{ data: binaryString, address: 0x150000 }],
-      flashSize: "keep",
-      eraseAll: false,
-      compress: true,
-      reportProgress: (fileIndex, written, total) => {
-        term.write(`Writing board name: ${Math.round((written / total) * 100)}%\r`);
-      },
-      calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
-    } as FlashOptions;
-    
-    await esploader.writeFlash(boardNameFlashOptions);
-    term.writeln(`\nBoard name "${boardName}" written successfully!`);
     
     // Step 3: Reset the device
     term.writeln("Step 3: Resetting device...");
@@ -329,7 +378,13 @@ writeBoardNameButton.onclick = async () => {
     term.writeln("Device reset completed!");
     term.writeln("You can now click 'Disconnect' to finish.");
     
-    term.writeln("Flash & Write Board Name completed successfully!");
+    if (boardName) {
+      term.writeln("Flash & Write Board Name completed successfully!");
+    } else if (nameToWrite) {
+      term.writeln("Firmware update with name preservation completed successfully!");
+    } else {
+      term.writeln("Firmware update completed successfully!");
+    }
   } catch (e) {
     console.error(e);
     term.writeln(`Error during flash & write: ${e.message}`);
