@@ -2,17 +2,40 @@ const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
-const prevStepButton = document.getElementById("prevStep") as HTMLButtonElement;
-const nextStepButton = document.getElementById("nextStep") as HTMLButtonElement;
-const stepContent = document.getElementById("stepContent") as HTMLSpanElement;
+const boardStatus = document.getElementById("boardStatus") as HTMLSpanElement;
+const connectionStatus = document.getElementById("connectionStatus") as HTMLSpanElement;
+const step1 = document.getElementById("step1") as HTMLDivElement;
+const step2 = document.getElementById("step2") as HTMLDivElement;
+const advancedToggle = document.getElementById("advancedToggle") as HTMLDivElement;
+const advancedContent = document.getElementById("advancedContent") as HTMLDivElement;
+const advancedArrow = document.getElementById("advancedArrow") as HTMLSpanElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
-const writeBoardNameButton = document.getElementById("writeBoardNameButton") as HTMLButtonElement;
-const boardNameSection = document.getElementById("boardNameSection");
+const changeNameButton = document.getElementById("changeNameButton") as HTMLButtonElement;
+const cancelNameChangeButton = document.getElementById("cancelNameChangeButton") as HTMLButtonElement;
+const changeNameButtonContainer = document.getElementById("changeNameButtonContainer") as HTMLDivElement;
+const boardNameEditSection = document.getElementById("boardNameEditSection") as HTMLDivElement;
+const firmwareActionSection = document.getElementById("firmwareActionSection");
+const flashFirmwareButton = document.getElementById("flashFirmwareButton") as HTMLButtonElement;
 const terminal = document.getElementById("terminal");
+const feedbackContent = document.getElementById("feedbackContent") as HTMLDivElement;
+const feedbackHelp = document.getElementById("feedbackHelp") as HTMLDivElement;
 const programDiv = document.getElementById("program");
 const lblBaudrate = document.getElementById("lblBaudrate");
 const lblConnTo = document.getElementById("lblConnTo");
 const alertDiv = document.getElementById("alertDiv");
+
+// Progress bar elements
+const progressSection = document.getElementById("progressSection") as HTMLDivElement;
+const progressBar = document.getElementById("progressBar") as HTMLDivElement;
+const progressOverall = document.getElementById("progressOverall") as HTMLSpanElement;
+const stepStart = document.getElementById("step-start") as HTMLDivElement;
+const stepErasing = document.getElementById("step-erasing") as HTMLDivElement;
+const stepUpdating = document.getElementById("step-updating") as HTMLDivElement;
+const stepWriting = document.getElementById("step-writing") as HTMLDivElement;
+const stepStartPercent = document.getElementById("step-start-percent") as HTMLSpanElement;
+const stepErasingPercent = document.getElementById("step-erasing-percent") as HTMLSpanElement;
+const stepUpdatingPercent = document.getElementById("step-updating-percent") as HTMLSpanElement;
+const stepWritingPercent = document.getElementById("step-writing-percent") as HTMLSpanElement;
 
 
 // This is a frontend example of Esptool-JS using local bundle file
@@ -23,20 +46,23 @@ import { serial } from "web-serial-polyfill";
 import binaryFileUrl from 'url:./stickem_main_merged.bin?url';
 import connectionDialogUrl from 'url:./Connection_Dialog.png?url';
 
-// Check Web Serial API support immediately on load
-if (!('serial' in navigator)) {
-  const alertDiv = document.getElementById("alertDiv");
-  const alertMsg = document.getElementById("alertmsg");
-  alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
-  alertDiv.style.display = "block";
-  
-  // Disable connect functionality
-  const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
-  const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
-  connectButton.disabled = true;
-  connectButton.title = "Web Serial API not supported";
-  manualConnectButton.disabled = true;
-  manualConnectButton.title = "Web Serial API not supported";
+// Check Web Serial API support after DOM elements are defined
+function checkWebSerialSupport() {
+  if (!('serial' in navigator)) {
+    const alertDiv = document.getElementById("alertDiv");
+    const alertMsg = document.getElementById("alertmsg");
+    alertMsg.textContent = "Web Serial API is not supported in this browser. Please use Chrome, Edge, or another Chromium-based browser.";
+    alertDiv.style.display = "block";
+    
+    // Update feedback to show the error
+    updateFeedback("Browser not supported - please use Chrome or Edge", 'error', false);
+    
+    // Disable connect functionality
+    connectButton.disabled = true;
+    connectButton.title = "Web Serial API not supported";
+    manualConnectButton.disabled = true;
+    manualConnectButton.title = "Web Serial API not supported";
+  }
 }
 
 const serialLib = !navigator.serial && navigator.usb ? serial : navigator.serial;
@@ -52,50 +78,233 @@ let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
 let defaultBinaryData: string = null;
+let originalBoardName: string = null; // Store original name for cancel functionality
+let currentBoardName: string = null; // Store current/auto-saved name
 
 disconnectButton.style.display = "none";
 // Board name section is hidden by default in HTML
 
-// Step navigation system
-const steps = [
-  `Step 1: Connect the ESP32 Board to your laptop using a data cable.`,
+// Board status management
+function updateBoardStatus(status: string, isConnected: boolean = false, isUnnamed: boolean = false) {
+  boardStatus.textContent = status;
   
-  `Step 2: Click 'Auto Connect' for seamless ESP32 detection, or 'Manual Connect' to choose the port yourself.<br>
-  Auto Connect: Automatically finds previously paired ESP32 devices or shows filtered ESP32 options if needed. No manual port selection required for paired devices!<br>
-  Manual Connect: Shows all available ports for manual selection. If unsure which port, disconnect and reconnect the ESP32 Board when the dialog is open.<br>
-  If there are issues, ensure nothing else is using the serial port, reconnect and refresh the page.`,
+  // Update board status styling
+  boardStatus.classList.remove("disconnected", "connected", "unnamed");
   
-  `Step 3: Once connected, optionally enter a board name and click 'Flash Firmware' to program the device. <br>
-  Leave the name field empty to update firmware without changing the name. If there are errors, try again from Step 1 but with a lower baud rate.`,
-  
-  `Step 4: Wait for the flashing process to complete. The device will reset automatically when finished.<br><br>
-  Once the terminal says to do so, click on the "Disconnect" button.`
-];
-
-let currentStep = 0;
-
-function updateStepDisplay() {
-  stepContent.innerHTML = steps[currentStep];
-  prevStepButton.disabled = currentStep === 0;
-  nextStepButton.disabled = currentStep === steps.length - 1;
+  if (!isConnected) {
+    boardStatus.classList.add("disconnected");
+  } else if (isUnnamed) {
+    boardStatus.classList.add("unnamed");
+  } else {
+    boardStatus.classList.add("connected");
+  }
 }
 
-prevStepButton.onclick = () => {
-  if (currentStep > 0) {
-    currentStep--;
-    updateStepDisplay();
+// Connection status management
+function updateConnectionStatus(isConnected: boolean = false) {
+  if (isConnected) {
+    connectionStatus.textContent = "Connected";
+    connectionStatus.classList.remove("disconnected");
+    connectionStatus.classList.add("connected");
+    // Show change board name button when connected
+    changeNameButtonContainer.classList.add("show");
+  } else {
+    connectionStatus.textContent = "Disconnected";
+    connectionStatus.classList.remove("connected");
+    connectionStatus.classList.add("disconnected");
+    // Hide change board name button when disconnected
+    changeNameButtonContainer.classList.remove("show");
   }
+}
+
+// Progress bar management
+interface ProgressState {
+  currentStep: number;
+  stepProgress: number[];
+  overallProgress: number;
+}
+
+let progressState: ProgressState = {
+  currentStep: 0,
+  stepProgress: [0, 0, 0, 0],
+  overallProgress: 0
 };
 
-nextStepButton.onclick = () => {
-  if (currentStep < steps.length - 1) {
-    currentStep++;
-    updateStepDisplay();
-  }
-};
+function showProgressBar() {
+  progressSection.style.display = 'block';
+  resetProgress();
+}
 
-// Initialize step display
-updateStepDisplay();
+function hideProgressBar() {
+  progressSection.style.display = 'none';
+  resetProgress();
+}
+
+function resetProgress() {
+  progressState = {
+    currentStep: 0,
+    stepProgress: [0, 0, 0, 0],
+    overallProgress: 0
+  };
+  updateProgressDisplay();
+}
+
+function updateProgress(step: number, stepPercent: number) {
+  // Update the specific step progress
+  progressState.stepProgress[step] = Math.min(100, Math.max(0, stepPercent));
+  
+  // Calculate overall progress (each step is 25%)
+  let overall = 0;
+  for (let i = 0; i < 4; i++) {
+    if (i < step) {
+      overall += 25; // Completed steps
+    } else if (i === step) {
+      overall += (progressState.stepProgress[i] * 25) / 100; // Current step
+    }
+    // Future steps contribute 0
+  }
+  
+  progressState.currentStep = step;
+  progressState.overallProgress = Math.min(100, overall);
+  
+  updateProgressDisplay();
+}
+
+function updateProgressDisplay() {
+  const steps = [stepStart, stepErasing, stepUpdating, stepWriting];
+  const percentElements = [stepStartPercent, stepErasingPercent, stepUpdatingPercent, stepWritingPercent];
+  
+  // Update overall progress
+  progressOverall.textContent = `${Math.round(progressState.overallProgress)}%`;
+  progressBar.style.width = `${progressState.overallProgress}%`;
+  
+  // Update step states
+  steps.forEach((step, index) => {
+    step.classList.remove('active', 'completed');
+    
+    if (index < progressState.currentStep) {
+      step.classList.add('completed');
+      percentElements[index].textContent = '100%';
+    } else if (index === progressState.currentStep) {
+      step.classList.add('active');
+      percentElements[index].textContent = `${Math.round(progressState.stepProgress[index])}%`;
+    } else {
+      percentElements[index].textContent = '0%';
+    }
+  });
+}
+
+// Feedback management
+function updateFeedback(message: string, type: 'default' | 'connecting' | 'connected' | 'flashing' | 'error' = 'default', showHelp: boolean = false) {
+  feedbackContent.textContent = message;
+  
+  // Remove all type classes
+  feedbackContent.classList.remove('connecting', 'connected', 'flashing', 'error');
+  
+  // Add the appropriate type class
+  if (type !== 'default') {
+    feedbackContent.classList.add(type);
+  }
+  
+  // Show or hide help text
+  if (showHelp) {
+    feedbackHelp.style.display = 'block';
+  } else {
+    feedbackHelp.style.display = 'none';
+  }
+}
+
+// Step focus management
+function focusStep(stepNumber: number) {
+  if (stepNumber === 1) {
+    step1.classList.remove("unfocused");
+    step1.classList.add("focused");
+    step2.classList.remove("focused");
+    step2.classList.add("unfocused");
+  } else if (stepNumber === 2) {
+    step1.classList.remove("focused");
+    step1.classList.add("unfocused");
+    step2.classList.remove("unfocused");
+    step2.classList.add("focused");
+  }
+}
+
+// Advanced options dropdown management
+function toggleAdvancedOptions() {
+  const isExpanded = advancedContent.classList.contains("show");
+  
+  if (isExpanded) {
+    advancedContent.classList.remove("show");
+    advancedArrow.classList.remove("expanded");
+  } else {
+    advancedContent.classList.add("show");
+    advancedArrow.classList.add("expanded");
+  }
+}
+
+// Board name editing management
+function showBoardNameEdit() {
+  changeNameButtonContainer.classList.remove("show");
+  boardNameEditSection.classList.add("show");
+  // Store the original name for cancel functionality
+  originalBoardName = boardStatus.textContent && boardStatus.textContent !== "No Board Detected" ? boardStatus.textContent : "";
+  // Pre-populate with current saved name or original name
+  const nameToShow = currentBoardName !== null ? currentBoardName : originalBoardName;
+  boardNameInput.value = nameToShow;
+}
+
+function hideBoardNameEdit() {
+  // Only show the button if we're actually connected
+  if (connectionStatus.classList.contains("connected")) {
+    changeNameButtonContainer.classList.add("show");
+  }
+  boardNameEditSection.classList.remove("show");
+  boardNameInput.value = "";
+}
+
+function cancelNameChange() {
+  // Restore the original name (cancel any auto-saved changes)
+  currentBoardName = originalBoardName;
+  boardNameInput.value = originalBoardName || "";
+  hideBoardNameEdit();
+}
+
+// Add click event handlers
+advancedToggle.onclick = toggleAdvancedOptions;
+changeNameButton.onclick = showBoardNameEdit;
+cancelNameChangeButton.onclick = cancelNameChange;
+
+// Add auto-save functionality for board name input with byte length validation
+let previousValue = '';
+boardNameInput.addEventListener('input', (event) => {
+  const encoder = new TextEncoder();
+  const currentValue = boardNameInput.value;
+  const nameBytes = encoder.encode(currentValue);
+  
+  // If the new value exceeds 31 bytes, reject the input and restore previous value
+  if (nameBytes.length > 31) {
+    boardNameInput.value = previousValue;
+    console.log('Input rejected: would exceed 31 bytes (' + nameBytes.length + ' bytes)');
+    return;
+  }
+  
+  // Accept the input and update previous value
+  previousValue = currentValue;
+  
+  // Auto-save the current name as the user types
+  currentBoardName = currentValue.trim();
+  console.log('Auto-saved board name:', currentBoardName, '(' + nameBytes.length + ' bytes)');
+});
+
+// Initialize previous value
+boardNameInput.addEventListener('focus', () => {
+  previousValue = boardNameInput.value;
+});
+
+// Flash firmware button should use the auto-saved board name
+flashFirmwareButton.onclick = async () => {
+  await flashFirmwareWithName();
+};
 
 // Load default binary file
 async function loadDefaultBinary() {
@@ -195,8 +404,8 @@ async function readExistingBoardName(): Promise<string | null> {
   try {
     term.writeln("Reading existing board name...");
     
-    // Read 64 bytes from the name address (should be enough for most names)
-    const nameData = await esploader.readFlash(0x150000, 64);
+    // Read 32 bytes from the name address (to match firmware)
+    const nameData = await esploader.readFlash(0x150000, 32);
     
     // Convert Uint8Array to string and find null terminator
     let nameString = '';
@@ -223,6 +432,7 @@ async function readExistingBoardName(): Promise<string | null> {
 
 async function connectToDevice(autoDetect = true) {
   try {
+    updateFeedback("Connecting to board...", 'connecting', false);
     device = null // Force re-scan
     if (device === null) {
       if (autoDetect) {
@@ -248,14 +458,31 @@ async function connectToDevice(autoDetect = true) {
     // Temporarily broken
     // await esploader.flashId();
     console.log("Settings done for :" + chip);
-    lblBaudrate.style.display = "none";
     lblConnTo.innerHTML = "Connected to device: " + chip;
     lblConnTo.style.display = "block";
-    baudrates.style.display = "none";
     connectButton.style.display = "none";
     manualConnectButton.style.display = "none";
     disconnectButton.style.display = "initial";
-    boardNameSection.style.display = "block";
+    firmwareActionSection.style.display = "block";
+    
+    // Read and display the board name first
+    const boardName = await readExistingBoardName();
+    if (boardName) {
+      updateBoardStatus(boardName, true);
+      // Initialize the current board name with the existing name
+      currentBoardName = boardName;
+    } else {
+      updateBoardStatus("Unnamed Board", true, true);
+      // Initialize with empty name for unnamed boards
+      currentBoardName = "";
+    }
+    
+    // Focus on step 2 when connected
+    focusStep(2);
+    
+    // Update connection status only after everything is successful (this will also show the change board name button)
+    updateConnectionStatus(true);
+    updateFeedback("Connected successfully!", 'connected', false);
   } catch (e) {
     console.error(e);
     
@@ -277,6 +504,13 @@ async function connectToDevice(autoDetect = true) {
     
     // Clean up on connection failure
     cleanUp();
+    updateBoardStatus("No Board Detected", false);
+    updateConnectionStatus(false);
+    updateFeedback("Connection failed", 'error', true);
+    hideBoardNameEdit();
+    
+    // Focus back on step 1 when connection fails
+    focusStep(1);
   }
 }
 
@@ -289,22 +523,29 @@ manualConnectButton.onclick = async () => {
 };
 
 
-writeBoardNameButton.onclick = async () => {
-  const boardName = boardNameInput.value.trim();
+async function flashFirmwareWithName() {
+  // Use the auto-saved board name
+  const boardName = currentBoardName || "";
 
   if (!esploader) {
     term.writeln("Error: Please connect to device first");
+    updateFeedback("Error: Please connect to device first", 'error', false);
     return;
   }
 
   if (!defaultBinaryData) {
     term.writeln("Error: Default binary file not loaded");
+    updateFeedback("Error: Default binary file not loaded", 'error', false);
     return;
   }
 
-  writeBoardNameButton.disabled = true;
+  // Show progress bar and start flashing process
+  updateFeedback("Starting firmware update...", 'flashing', false);
+  showProgressBar();
+  
   try {
-    // Step 0: Read existing board name before erasing (if no new name provided)
+    // Step 0: Start - Read existing board name before erasing (if no new name provided)
+    updateProgress(0, 0);
     let nameToWrite = boardName;
     if (!boardName) {
       const existingName = await readExistingBoardName();
@@ -315,30 +556,76 @@ writeBoardNameButton.onclick = async () => {
         term.writeln("No existing name to preserve");
       }
     }
+    updateProgress(0, 100);
     
-    // Step 1: Flash the default binary file to address 0x0
-    term.writeln("Step 1: Flashing default binary to address 0x0...");
+    // Step 1: Erasing Previous Firmware + Step 2: Flashing New Firmware
+    updateProgress(1, 0);
+    term.writeln("Step 1: Erasing previous firmware...");
     
+    // Start the 10-second erasing progress simulation (stops at 99%)
+    let erasingProgressInterval: NodeJS.Timeout | null = null;
+    let erasingComplete = false;
+    
+    erasingProgressInterval = setInterval(() => {
+      if (!erasingComplete) {
+        const currentProgress = progressState.stepProgress[1];
+        if (currentProgress < 99) {
+          const newProgress = currentProgress + 1; // 99% over 10 seconds (100 intervals)
+          updateProgress(1, newProgress);
+          term.write(`Erasing firmware: ${Math.round(newProgress)}%\r`);
+        }
+        // Once we hit 99%, stay there until actual erase completes
+      }
+    }, 100); // Update every 100ms for smooth progress
+    
+    // Start the actual flashing process simultaneously
     const binaryFlashOptions: FlashOptions = {
       fileArray: [{ data: defaultBinaryData, address: 0x0 }],
       flashSize: "keep",
       eraseAll: true,
       compress: true,
       reportProgress: (fileIndex, written, total) => {
-        term.write(`Flashing binary: ${Math.round((written / total) * 100)}%\r`);
+        // First time we get progress from actual flashing, the erase phase is done
+        if (!erasingComplete) {
+          erasingComplete = true;
+          if (erasingProgressInterval) {
+            clearInterval(erasingProgressInterval);
+            erasingProgressInterval = null;
+          }
+          updateProgress(1, 100); // Complete erasing step
+          term.writeln(`\nFlash erased!`);
+          updateProgress(2, 0); // Start flashing step
+          term.writeln("Step 2: Flashing new firmware...");
+        }
+        
+        // Show real flashing progress on step 2
+        const percent = Math.round((written / total) * 100);
+        updateProgress(2, percent);
+        term.write(`Flashing firmware: ${percent}%\r`);
       },
       calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
     } as FlashOptions;
     
     await esploader.writeFlash(binaryFlashOptions);
-    term.writeln(`\nDefault binary flashed successfully!`);
     
-    // Step 2: Write the board name (use new name or preserved existing name)
+    // Clean up the interval if it's still running (shouldn't happen, but just in case)
+    if (erasingProgressInterval) {
+      clearInterval(erasingProgressInterval);
+      erasingComplete = true;
+      updateProgress(1, 100);
+      term.writeln(`\nFlash erased!`);
+    }
+    
+    term.writeln(`\nFirmware flashing completed successfully!`);
+    updateProgress(2, 100);
+    
+    // Step 3: Writing Board Name
+    updateProgress(3, 0);
     if (nameToWrite) {
       if (boardName) {
-        term.writeln("Step 2: Writing new board name...");
+        term.writeln("Step 3: Writing new board name...");
       } else {
-        term.writeln("Step 2: Restoring preserved board name...");
+        term.writeln("Step 3: Restoring preserved board name...");
       }
       
       // Convert board name to binary data (null-terminated string)
@@ -357,7 +644,9 @@ writeBoardNameButton.onclick = async () => {
         eraseAll: false,
         compress: true,
         reportProgress: (fileIndex, written, total) => {
-          term.write(`Writing board name: ${Math.round((written / total) * 100)}%\r`);
+          const percent = Math.round((written / total) * 100);
+          updateProgress(3, percent);
+          term.write(`Writing board name: ${percent}%\r`);
         },
         calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
       } as FlashOptions;
@@ -365,11 +654,12 @@ writeBoardNameButton.onclick = async () => {
       await esploader.writeFlash(boardNameFlashOptions);
       term.writeln(`\nBoard name "${nameToWrite}" written successfully!`);
     } else {
-      term.writeln("Step 2: No name to write (no existing name found and none provided)");
+      term.writeln("Step 3: No name to write (no existing name found and none provided)");
     }
+    updateProgress(3, 100);
     
-    // Step 3: Reset the device
-    term.writeln("Step 3: Resetting device...");
+    // Final step: Reset the device
+    term.writeln("Resetting device...");
     if (transport) {
       await transport.setDTR(false);
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -378,20 +668,68 @@ writeBoardNameButton.onclick = async () => {
     term.writeln("Device reset completed!");
     term.writeln("You can now click 'Disconnect' to finish.");
     
+    // Success messages
     if (boardName) {
       term.writeln("Flash & Write Board Name completed successfully!");
+      updateFeedback("You can now physically disconnect the board!", 'connected', false);
     } else if (nameToWrite) {
       term.writeln("Firmware update with name preservation completed successfully!");
+      updateFeedback("You can now physically disconnect the board!", 'connected', false);
     } else {
       term.writeln("Firmware update completed successfully!");
+      updateFeedback("You can now physically disconnect the board!", 'connected', false);
     }
+    
+    // Hide the board name edit section after successful flash
+    hideBoardNameEdit();
+    
+    // Update the board name display
+    if (nameToWrite) {
+      updateBoardStatus(nameToWrite, true);
+    }
+    
+    // Hide progress bar immediately since feedback shows completion
+    hideProgressBar();
+    
+    // Auto-disconnect immediately
+    term.writeln("Auto-disconnecting...");
+    if (transport) {
+      try {
+        await transport.disconnect();
+        term.writeln("Device disconnected successfully.");
+      } catch (e) {
+        console.warn("Disconnect error (cable may have been unplugged):", e.message);
+        term.writeln("Device was already disconnected (cable unplugged?)");
+      }
+    }
+
+    term.writeln("Ready for next connection.");
+    connectButton.style.display = "initial";
+    manualConnectButton.style.display = "initial";
+    disconnectButton.style.display = "none";
+    firmwareActionSection.style.display = "none";
+    
+    hideBoardNameEdit();
+    lblConnTo.style.display = "none";
+    alertDiv.style.display = "none";
+    cleanUp();
+    
+    // Reset board status and name variables
+    updateBoardStatus("No Board Detected", false);
+    updateConnectionStatus(false);
+    currentBoardName = null;
+    originalBoardName = null;
+    
+    // Focus back on step 1 when disconnected
+    focusStep(1);
+    
   } catch (e) {
     console.error(e);
-    term.writeln(`Error during flash & write: ${e.message}`);
-  } finally {
-    writeBoardNameButton.disabled = false;
+    term.writeln(`Error during firmware update: ${e.message}`);
+    updateFeedback("Firmware update failed", 'error', false);
+    hideProgressBar();
   }
-};
+}
 
 
 
@@ -416,15 +754,26 @@ disconnectButton.onclick = async () => {
   }
 
   term.writeln("Ready for next connection.");
-  lblBaudrate.style.display = "initial";
-  baudrates.style.display = "initial";
   connectButton.style.display = "initial";
   manualConnectButton.style.display = "initial";
   disconnectButton.style.display = "none";
-  boardNameSection.style.display = "none";
+  firmwareActionSection.style.display = "none";
+  
+  hideBoardNameEdit();
+  hideProgressBar();
   lblConnTo.style.display = "none";
   alertDiv.style.display = "none";
   cleanUp();
+  
+  // Reset board status and name variables
+  updateBoardStatus("No Board Detected", false);
+  updateConnectionStatus(false);
+  updateFeedback("Ready to connect...", 'default', false);
+  currentBoardName = null;
+  originalBoardName = null;
+  
+  // Focus back on step 1 when disconnected
+  focusStep(1);
 };
 
 
@@ -432,3 +781,6 @@ disconnectButton.onclick = async () => {
 
 // Initialize default binary loading
 loadDefaultBinary();
+
+// Check Web Serial API support now that DOM elements are ready
+checkWebSerialSupport();
