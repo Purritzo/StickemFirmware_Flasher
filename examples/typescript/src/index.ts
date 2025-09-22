@@ -77,6 +77,7 @@ const term = new Terminal({ cols: 60, rows: 30 });
 term.open(terminal);
 
 let device = null;
+let serialDevice = null; // Store the original serial device separately
 let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
@@ -303,9 +304,29 @@ bluetoothRetrieveButton.onclick = async () => {
       return;
     }
 
+    // Check if we have an active transport connection
+    if (!transport) {
+      alert("No serial connection available. Please connect to the device first.");
+      return;
+    }
+
+    term.writeln("Preparing device for Bluetooth scanning...");
+    bluetoothRetrieveButton.textContent = "Preparing...";
+    bluetoothRetrieveButton.disabled = true;
+
+    // Step 1: Reset ESP32 out of programming mode to enable Bluetooth
+    term.writeln("Resetting device to enable Bluetooth...");
+    await transport.setDTR(false);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await transport.setDTR(true);
+
+    // Wait a bit for ESP32 to start up and enable Bluetooth
+    term.writeln("Waiting for device to restart...");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Step 2: Scan for Bluetooth devices
     term.writeln("Scanning for Bluetooth devices starting with ⠀...");
     bluetoothRetrieveButton.textContent = "Scanning...";
-    bluetoothRetrieveButton.disabled = true;
 
     // Request Bluetooth device with name filter
     const device = await navigator.bluetooth.requestDevice({
@@ -327,6 +348,27 @@ bluetoothRetrieveButton.onclick = async () => {
       if (retrievedName) {
         term.writeln(`Retrieved board name: "${retrievedName}"`);
 
+        // Step 3: Put ESP32 back into programming mode
+        term.writeln("Putting device back into programming mode...");
+        bluetoothRetrieveButton.textContent = "Reconnecting...";
+
+        // Disconnect first, then reconnect to restore programming mode
+        await transport.disconnect();
+
+        // Recreate transport and esploader to restore original settings
+        transport = new Transport(serialDevice, true);
+        const flashOptions = {
+          transport,
+          baudrate: parseInt(baudrates.value),
+          terminal: espLoaderTerminal,
+          debugLogging: false,
+        } as LoaderOptions;
+        esploader = new ESPLoader(flashOptions);
+
+        // Reconnect with full initialization
+        chip = await esploader.main();
+        term.writeln("Device reconnected in programming mode.");
+
         // Update the board name input with retrieved name
         currentBoardName = retrievedName;
         boardNameInput.value = retrievedName;
@@ -345,10 +387,40 @@ bluetoothRetrieveButton.onclick = async () => {
       } else {
         term.writeln("Device found but no valid name extracted");
         alert("Device found but no valid board name could be extracted.");
+
+        // Still need to reconnect even if name extraction failed
+        term.writeln("Putting device back into programming mode...");
+        await transport.disconnect();
+
+        // Recreate transport and esploader
+        transport = new Transport(serialDevice, true);
+        const flashOptions = {
+          transport,
+          baudrate: parseInt(baudrates.value),
+          terminal: espLoaderTerminal,
+          debugLogging: false,
+        } as LoaderOptions;
+        esploader = new ESPLoader(flashOptions);
+        chip = await esploader.main();
       }
     } else {
       term.writeln("No device selected or device has no name");
       alert("No device was selected or the device has no readable name.");
+
+      // Still need to reconnect even if no device selected
+      term.writeln("Putting device back into programming mode...");
+      await transport.disconnect();
+
+      // Recreate transport and esploader
+      transport = new Transport(serialDevice, true);
+      const flashOptions = {
+        transport,
+        baudrate: parseInt(baudrates.value),
+        terminal: espLoaderTerminal,
+        debugLogging: false,
+      } as LoaderOptions;
+      esploader = new ESPLoader(flashOptions);
+      chip = await esploader.main();
     }
 
   } catch (error) {
@@ -362,6 +434,28 @@ bluetoothRetrieveButton.onclick = async () => {
     } else {
       alert(`Bluetooth error: ${error.message}`);
     }
+
+    // Always try to reconnect in case of error
+    try {
+      term.writeln("Attempting to reconnect device in programming mode...");
+      await transport.disconnect();
+
+      // Recreate transport and esploader
+      transport = new Transport(serialDevice, true);
+      const flashOptions = {
+        transport,
+        baudrate: parseInt(baudrates.value),
+        terminal: espLoaderTerminal,
+        debugLogging: false,
+      } as LoaderOptions;
+      esploader = new ESPLoader(flashOptions);
+      chip = await esploader.main();
+      term.writeln("Device reconnected successfully.");
+    } catch (reconnectError) {
+      term.writeln("Failed to reconnect device. You may need to disconnect and reconnect manually.");
+      console.error('Reconnect error:', reconnectError);
+    }
+
   } finally {
     // Reset button state
     bluetoothRetrieveButton.textContent = "Retrieve Name through Bluetooth";
@@ -545,6 +639,7 @@ async function connectToDevice(autoDetect = true) {
         device = await serialLib.requestPort({});
         term.writeln("Port selected manually.");
       }
+      serialDevice = device; // Store the serial device reference
       transport = new Transport(device, true);
     }
     const flashOptions = {
@@ -858,6 +953,7 @@ async function flashFirmwareWithName() {
  */
 function cleanUp() {
   device = null;
+  serialDevice = null;
   transport = null;
   chip = null;
 }
@@ -865,6 +961,12 @@ function cleanUp() {
 disconnectButton.onclick = async () => {
   if (transport) {
     try {
+      // Perform DTR reset before disconnecting
+      await transport.setDTR(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await transport.setDTR(true);
+      term.writeln("Device reset completed.");
+
       await transport.disconnect();
       term.writeln("Device disconnected successfully.");
     } catch (e) {
