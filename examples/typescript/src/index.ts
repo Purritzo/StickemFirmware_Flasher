@@ -11,7 +11,6 @@ const advancedContent = document.getElementById("advancedContent") as HTMLDivEle
 const advancedArrow = document.getElementById("advancedArrow") as HTMLSpanElement;
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const changeNameButton = document.getElementById("changeNameButton") as HTMLButtonElement;
-const cancelNameChangeButton = document.getElementById("cancelNameChangeButton") as HTMLButtonElement;
 const changeNameButtonContainer = document.getElementById("changeNameButtonContainer") as HTMLDivElement;
 const boardNameEditSection = document.getElementById("boardNameEditSection") as HTMLDivElement;
 const firmwareActionSection = document.getElementById("firmwareActionSection");
@@ -262,17 +261,10 @@ function hideBoardNameEdit() {
   boardNameInput.value = "";
 }
 
-function cancelNameChange() {
-  // Restore the original name (cancel any auto-saved changes)
-  currentBoardName = originalBoardName;
-  boardNameInput.value = originalBoardName || "";
-  hideBoardNameEdit();
-}
 
 // Add click event handlers
 advancedToggle.onclick = toggleAdvancedOptions;
 changeNameButton.onclick = showBoardNameEdit;
-cancelNameChangeButton.onclick = cancelNameChange;
 
 // Add auto-save functionality for board name input with byte length validation
 let previousValue = '';
@@ -482,6 +474,10 @@ async function connectToDevice(autoDetect = true) {
     
     // Update connection status only after everything is successful (this will also show the change board name button)
     updateConnectionStatus(true);
+
+    // Automatically open the board name edit section after successful connection
+    showBoardNameEdit();
+
     updateFeedback("Connected successfully!", 'connected', false);
   } catch (e) {
     console.error(e);
