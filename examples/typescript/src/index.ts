@@ -577,8 +577,7 @@ async function connectToDevice(autoDetect = true) {
     } else {
       // Show notification for unnamed board
       alert(
-        "Board name cannot be read from the ESP32!\n\n" +
-        "Please set a board name or try retrieving it through Bluetooth."
+        "Cannot detect board name, please type it in manually!"
       );
 
       updateBoardStatus("Unnamed Board", true, true, true); // Show warning for unnamed board
