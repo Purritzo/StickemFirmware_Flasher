@@ -49,10 +49,15 @@
                 <div class="board-name-line">
                     <span class="board-name-label">Board Name:</span>
                     <span class="board-name-value disconnected" id="boardStatus">No Board Detected</span>
+                    <span class="board-name-warning" id="boardNameWarning" style="display: none;">⚠️</span>
                 </div>
                 
                 <div class="change-name-button" id="changeNameButtonContainer">
                     <button class="btn btn-secondary btn-sm" id="changeNameButton">Change Board Name</button>
+                </div>
+
+                <div class="bluetooth-retrieve-button" id="bluetoothRetrieveContainer" style="display: none;">
+                    <button class="btn btn-info btn-sm" id="bluetoothRetrieveButton">Retrieve Name through Bluetooth</button>
                 </div>
                 
                 <div class="board-name-edit" id="boardNameEditSection">
@@ -85,6 +90,9 @@
                 </div>
                 
                 <div class="action2-grid" id="firmwareActionSection" style="display: none;">
+                    <div class="flash-warning" id="flashWarning" style="display: none;">
+                        <span> Default board name will be used!</span>
+                    </div>
                     <button class="btn btn-success btn-lg" id="flashFirmwareButton">Flash Firmware</button>
                 </div>
                 

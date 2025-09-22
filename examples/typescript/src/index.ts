@@ -3,6 +3,7 @@ const connectButton = document.getElementById("connectButton") as HTMLButtonElem
 const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
 const boardStatus = document.getElementById("boardStatus") as HTMLSpanElement;
+const boardNameWarning = document.getElementById("boardNameWarning") as HTMLSpanElement;
 const connectionStatus = document.getElementById("connectionStatus") as HTMLSpanElement;
 const step1 = document.getElementById("step1") as HTMLDivElement;
 const step2 = document.getElementById("step2") as HTMLDivElement;
@@ -12,8 +13,11 @@ const advancedArrow = document.getElementById("advancedArrow") as HTMLSpanElemen
 const boardNameInput = document.getElementById("boardName") as HTMLInputElement;
 const changeNameButton = document.getElementById("changeNameButton") as HTMLButtonElement;
 const changeNameButtonContainer = document.getElementById("changeNameButtonContainer") as HTMLDivElement;
+const bluetoothRetrieveButton = document.getElementById("bluetoothRetrieveButton") as HTMLButtonElement;
+const bluetoothRetrieveContainer = document.getElementById("bluetoothRetrieveContainer") as HTMLDivElement;
 const boardNameEditSection = document.getElementById("boardNameEditSection") as HTMLDivElement;
 const firmwareActionSection = document.getElementById("firmwareActionSection");
+const flashWarning = document.getElementById("flashWarning") as HTMLDivElement;
 const flashFirmwareButton = document.getElementById("flashFirmwareButton") as HTMLButtonElement;
 const terminal = document.getElementById("terminal");
 const feedbackContent = document.getElementById("feedbackContent") as HTMLDivElement;
@@ -79,23 +83,28 @@ let esploader: ESPLoader;
 let defaultBinaryData: string = null;
 let originalBoardName: string = null; // Store original name for cancel functionality
 let currentBoardName: string = null; // Store current/auto-saved name
+const defaultBoardName: string = "Stick 'Em Box X"; // Default name for unnamed boards
+let userHasModifiedName: boolean = false; // Track if user has changed the default name
 
 disconnectButton.style.display = "none";
 // Board name section is hidden by default in HTML
 
 // Board status management
-function updateBoardStatus(status: string, isConnected: boolean = false, isUnnamed: boolean = false) {
+function updateBoardStatus(status: string, isConnected: boolean = false, isUnnamed: boolean = false, showWarning: boolean = false) {
   boardStatus.textContent = status;
-  
+
   // Update board status styling
   boardStatus.classList.remove("disconnected", "connected", "unnamed");
-  
+
   if (!isConnected) {
     boardStatus.classList.add("disconnected");
+    boardNameWarning.style.display = "none";
   } else if (isUnnamed) {
     boardStatus.classList.add("unnamed");
+    boardNameWarning.style.display = showWarning ? "inline" : "none";
   } else {
     boardStatus.classList.add("connected");
+    boardNameWarning.style.display = "none";
   }
 }
 
@@ -113,6 +122,15 @@ function updateConnectionStatus(isConnected: boolean = false) {
     connectionStatus.classList.add("disconnected");
     // Hide change board name button when disconnected
     changeNameButtonContainer.classList.remove("show");
+  }
+}
+
+// Flash warning management
+function updateFlashWarning() {
+  if (!userHasModifiedName && currentBoardName === defaultBoardName) {
+    flashWarning.style.display = "block";
+  } else {
+    flashWarning.style.display = "none";
   }
 }
 
@@ -247,8 +265,20 @@ function showBoardNameEdit() {
   boardNameEditSection.classList.add("show");
   // Store the original name for cancel functionality
   originalBoardName = boardStatus.textContent && boardStatus.textContent !== "No Board Detected" ? boardStatus.textContent : "";
-  // Pre-populate with current saved name or original name
-  const nameToShow = currentBoardName !== null ? currentBoardName : originalBoardName;
+
+  // Pre-populate with current saved name, original name, or default name
+  let nameToShow: string;
+  if (currentBoardName !== null) {
+    nameToShow = currentBoardName;
+  } else if (originalBoardName) {
+    nameToShow = originalBoardName;
+  } else {
+    // No existing name found, use default name
+    nameToShow = defaultBoardName;
+    currentBoardName = defaultBoardName;
+    userHasModifiedName = false; // This is the default, not user-modified
+  }
+
   boardNameInput.value = nameToShow;
 }
 
@@ -265,6 +295,79 @@ function hideBoardNameEdit() {
 // Add click event handlers
 advancedToggle.onclick = toggleAdvancedOptions;
 changeNameButton.onclick = showBoardNameEdit;
+bluetoothRetrieveButton.onclick = async () => {
+  try {
+    // Check if Web Bluetooth is supported
+    if (!navigator.bluetooth) {
+      alert("Web Bluetooth is not supported in this browser.\n\nPlease use Chrome, Edge, or another Chromium-based browser with Bluetooth support.");
+      return;
+    }
+
+    term.writeln("Scanning for Bluetooth devices starting with ⠀...");
+    bluetoothRetrieveButton.textContent = "Scanning...";
+    bluetoothRetrieveButton.disabled = true;
+
+    // Request Bluetooth device with name filter
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{
+        namePrefix: '\u2800' // U+2800 character
+      }],
+      optionalServices: [] // We don't need any specific services, just the name
+    });
+
+    if (device && device.name) {
+      term.writeln(`Found device: ${device.name}`);
+
+      // Extract the name (remove the U+2800 prefix)
+      let retrievedName = device.name;
+      if (retrievedName.startsWith('\u2800')) {
+        retrievedName = retrievedName.substring(1).trim();
+      }
+
+      if (retrievedName) {
+        term.writeln(`Retrieved board name: "${retrievedName}"`);
+
+        // Update the board name input with retrieved name
+        currentBoardName = retrievedName;
+        boardNameInput.value = retrievedName;
+        userHasModifiedName = true; // Mark as user-modified since it's from BT
+
+        // Update board status
+        updateBoardStatus(retrievedName, true);
+
+        // Update flash warning visibility
+        updateFlashWarning();
+
+        // Hide the Bluetooth retrieve button since we got a name
+        bluetoothRetrieveContainer.style.display = "none";
+
+        term.writeln("Board name retrieved successfully via Bluetooth!");
+      } else {
+        term.writeln("Device found but no valid name extracted");
+        alert("Device found but no valid board name could be extracted.");
+      }
+    } else {
+      term.writeln("No device selected or device has no name");
+      alert("No device was selected or the device has no readable name.");
+    }
+
+  } catch (error) {
+    console.error('Bluetooth error:', error);
+    term.writeln(`Bluetooth error: ${error.message}`);
+
+    if (error.name === 'NotFoundError') {
+      alert("No Stick 'Em Bluetooth devices found.\n\nMake sure your board is in Bluetooth mode and nearby.");
+    } else if (error.name === 'NotAllowedError') {
+      alert("Bluetooth access was denied.\n\nPlease allow Bluetooth access and try again.");
+    } else {
+      alert(`Bluetooth error: ${error.message}`);
+    }
+  } finally {
+    // Reset button state
+    bluetoothRetrieveButton.textContent = "Retrieve Name through Bluetooth";
+    bluetoothRetrieveButton.disabled = false;
+  }
+};
 
 // Add auto-save functionality for board name input with byte length validation
 let previousValue = '';
@@ -272,20 +375,27 @@ boardNameInput.addEventListener('input', (event) => {
   const encoder = new TextEncoder();
   const currentValue = boardNameInput.value;
   const nameBytes = encoder.encode(currentValue);
-  
+
   // If the new value exceeds 31 bytes, reject the input and restore previous value
   if (nameBytes.length > 31) {
     boardNameInput.value = previousValue;
     console.log('Input rejected: would exceed 31 bytes (' + nameBytes.length + ' bytes)');
     return;
   }
-  
+
   // Accept the input and update previous value
   previousValue = currentValue;
-  
+
   // Auto-save the current name as the user types
   currentBoardName = currentValue.trim();
-  console.log('Auto-saved board name:', currentBoardName, '(' + nameBytes.length + ' bytes)');
+
+  // Track if user has modified the default name
+  userHasModifiedName = (currentBoardName !== defaultBoardName);
+
+  // Update flash warning visibility
+  updateFlashWarning();
+
+  console.log('Auto-saved board name:', currentBoardName, '(' + nameBytes.length + ' bytes)', userHasModifiedName ? '(user modified)' : '(default)');
 });
 
 // Initialize previous value
@@ -463,10 +573,20 @@ async function connectToDevice(autoDetect = true) {
       updateBoardStatus(boardName, true);
       // Initialize the current board name with the existing name
       currentBoardName = boardName;
+      userHasModifiedName = false; // Existing name, not user-modified
     } else {
-      updateBoardStatus("Unnamed Board", true, true);
-      // Initialize with empty name for unnamed boards
-      currentBoardName = "";
+      // Show notification for unnamed board
+      alert(
+        "Board name cannot be read from the ESP32!\n\n" +
+        "Please set a board name or try retrieving it through Bluetooth."
+      );
+
+      updateBoardStatus("Unnamed Board", true, true, true); // Show warning for unnamed board
+      // Show Bluetooth retrieve button for unnamed boards
+      bluetoothRetrieveContainer.style.display = "block";
+      // Initialize with default name for unnamed boards
+      currentBoardName = defaultBoardName;
+      userHasModifiedName = false; // Using default, not user-modified yet
     }
     
     // Focus on step 2 when connected
@@ -474,6 +594,9 @@ async function connectToDevice(autoDetect = true) {
     
     // Update connection status only after everything is successful (this will also show the change board name button)
     updateConnectionStatus(true);
+
+    // Update flash warning visibility based on current name status
+    updateFlashWarning();
 
     // Automatically open the board name edit section after successful connection
     showBoardNameEdit();
@@ -706,6 +829,7 @@ async function flashFirmwareWithName() {
     firmwareActionSection.style.display = "none";
     
     hideBoardNameEdit();
+    bluetoothRetrieveContainer.style.display = "none";
     lblConnTo.style.display = "none";
     alertDiv.style.display = "none";
     cleanUp();
@@ -715,6 +839,7 @@ async function flashFirmwareWithName() {
     updateConnectionStatus(false);
     currentBoardName = null;
     originalBoardName = null;
+    userHasModifiedName = false;
     
     // Focus back on step 1 when disconnected
     focusStep(1);
@@ -757,6 +882,7 @@ disconnectButton.onclick = async () => {
   
   hideBoardNameEdit();
   hideProgressBar();
+  bluetoothRetrieveContainer.style.display = "none";
   lblConnTo.style.display = "none";
   alertDiv.style.display = "none";
   cleanUp();
@@ -767,6 +893,7 @@ disconnectButton.onclick = async () => {
   updateFeedback("Ready to connect...", 'default', false);
   currentBoardName = null;
   originalBoardName = null;
+  userHasModifiedName = false;
   
   // Focus back on step 1 when disconnected
   focusStep(1);
