@@ -49,5 +49,3 @@ jobs:
 
             - name: Deploy Project Artifacts
               run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-              with:
-                path: ./examples/typescript/dist
