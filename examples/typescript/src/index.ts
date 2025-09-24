@@ -2,6 +2,7 @@ const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
+const forceDisconnectButton = document.getElementById("forceDisconnectButton") as HTMLButtonElement;
 const boardStatus = document.getElementById("boardStatus") as HTMLSpanElement;
 const boardNameWarning = document.getElementById("boardNameWarning") as HTMLSpanElement;
 const connectionStatus = document.getElementById("connectionStatus") as HTMLSpanElement;
@@ -16,7 +17,7 @@ const changeNameButtonContainer = document.getElementById("changeNameButtonConta
 const bluetoothRetrieveButton = document.getElementById("bluetoothRetrieveButton") as HTMLButtonElement;
 const bluetoothRetrieveContainer = document.getElementById("bluetoothRetrieveContainer") as HTMLDivElement;
 const boardNameEditSection = document.getElementById("boardNameEditSection") as HTMLDivElement;
-const firmwareActionSection = document.getElementById("firmwareActionSection");
+const firmwareActionSection = document.getElementById("firmwareActionSection") as HTMLDivElement;
 const flashWarning = document.getElementById("flashWarning") as HTMLDivElement;
 const flashFirmwareButton = document.getElementById("flashFirmwareButton") as HTMLButtonElement;
 const terminal = document.getElementById("terminal");
@@ -151,11 +152,42 @@ let progressState: ProgressState = {
 function showProgressBar() {
   progressSection.style.display = 'block';
   resetProgress();
+
+  // Hide main UI containers during firmware update to focus on progress
+  const statusBoardDisplay = document.querySelector('.status-board-display') as HTMLElement;
+
+  // Hide specific elements within steps-grid but keep the grid itself for progress bar
+  step1.style.display = 'none';
+  step2.style.display = 'none';
+  const stepArrow = document.querySelector('.step-arrow') as HTMLElement;
+  const action1Grid = document.querySelector('.action1-grid') as HTMLElement;
+  const action2Grid = document.querySelector('.action2-grid') as HTMLElement;
+
+  if (statusBoardDisplay) statusBoardDisplay.style.display = 'none';
+  if (stepArrow) stepArrow.style.display = 'none';
+  if (action1Grid) action1Grid.style.display = 'none';
+  if (action2Grid) action2Grid.style.display = 'none';
 }
 
 function hideProgressBar() {
   progressSection.style.display = 'none';
   resetProgress();
+
+  // Restore main UI containers after firmware update
+  const statusBoardDisplay = document.querySelector('.status-board-display') as HTMLElement;
+
+  // Restore specific elements within steps-grid
+  step1.style.display = '';
+  step2.style.display = '';
+  const stepArrow = document.querySelector('.step-arrow') as HTMLElement;
+  const action1Grid = document.querySelector('.action1-grid') as HTMLElement;
+  const action2Grid = document.querySelector('.action2-grid') as HTMLElement;
+
+  if (statusBoardDisplay) statusBoardDisplay.style.display = '';
+  if (stepArrow) stepArrow.style.display = '';
+  if (action1Grid) action1Grid.style.display = '';
+  // Don't restore action2Grid (firmwareActionSection) if we're disconnecting
+  // This will be handled separately in the disconnect flow
 }
 
 function resetProgress() {
@@ -920,7 +952,7 @@ async function flashFirmwareWithName() {
     connectButton.style.display = "initial";
     manualConnectButton.style.display = "initial";
     disconnectButton.style.display = "none";
-    firmwareActionSection.style.display = "none";
+    firmwareActionSection.style.setProperty("display", "none", "important");
     
     hideBoardNameEdit();
     bluetoothRetrieveContainer.style.display = "none";
@@ -996,6 +1028,50 @@ disconnectButton.onclick = async () => {
   originalBoardName = null;
   userHasModifiedName = false;
   
+  // Focus back on step 1 when disconnected
+  focusStep(1);
+};
+
+// Force Disconnect button (for emergency use during firmware update)
+forceDisconnectButton.onclick = async () => {
+  // Use the same disconnect logic as the regular disconnect button
+  if (transport) {
+    try {
+      // Perform DTR reset before disconnecting
+      await transport.setDTR(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await transport.setDTR(true);
+      term.writeln("Device reset completed.");
+
+      await transport.disconnect();
+      term.writeln("Device disconnected successfully.");
+    } catch (e) {
+      console.warn("Disconnect error (cable may have been unplugged):", e.message);
+      term.writeln("Device was already disconnected (cable unplugged?)");
+    }
+  }
+
+  term.writeln("Ready for next connection.");
+  connectButton.style.display = "initial";
+  manualConnectButton.style.display = "initial";
+  disconnectButton.style.display = "none";
+  firmwareActionSection.style.display = "none";
+
+  hideBoardNameEdit();
+  hideProgressBar();
+  bluetoothRetrieveContainer.style.display = "none";
+  lblConnTo.style.display = "none";
+  alertDiv.style.display = "none";
+  cleanUp();
+
+  // Reset board status and name variables
+  updateBoardStatus("No Board Detected", false);
+  updateConnectionStatus(false);
+  updateFeedback("Ready to connect...", 'default', false);
+  currentBoardName = null;
+  originalBoardName = null;
+  userHasModifiedName = false;
+
   // Focus back on step 1 when disconnected
   focusStep(1);
 };
