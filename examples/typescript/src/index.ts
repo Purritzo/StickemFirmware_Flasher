@@ -50,6 +50,7 @@ const stepWritingPercent = document.getElementById("step-writing-percent") as HT
 import { ESPLoader, FlashOptions, LoaderOptions, Transport } from "../../../lib";
 import { serial } from "web-serial-polyfill";
 import latest_binaryFileUrl from 'url:./latest_stickem_main_merged.bin?url';
+import v1_1_1_binaryFileUrl from 'url:./v1_1_1_stickem_main_merged.bin?url';
 import v1_0_0_binaryFileUrl from 'url:./v1_0_0_stickem_main_merged.bin?url';
 import connectionDialogUrl from 'url:./Connection_Dialog.png?url';
 
@@ -64,9 +65,15 @@ interface FirmwareVersion {
 const firmwareVersions: FirmwareVersion[] = [
   {
     value: "latest",
-    label: "Latest (v1.1.1)",
+    label: "Latest (v1.1.2)",
     binaryUrl: latest_binaryFileUrl, // Use the current binary for latest
     description: "Latest stable release with all bug fixes and features"
+  },
+  {
+    value: "v1.1.1",
+    label: "v1.1.1",
+    binaryUrl: v1_1_1_binaryFileUrl,
+    description: "Previous version with possible crash from task deletion"
   },
   {
     value: "v1.0.0",
