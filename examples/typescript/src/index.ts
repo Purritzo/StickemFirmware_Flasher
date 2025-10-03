@@ -1,7 +1,10 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
+const firmwareVersion = document.getElementById("firmwareVersion") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const manualConnectButton = document.getElementById("manualConnectButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
+const forceDisconnectButton = document.getElementById("forceDisconnectButton") as HTMLButtonElement;
+const eraseFlashButton = document.getElementById("eraseFlashButton") as HTMLButtonElement;
 const boardStatus = document.getElementById("boardStatus") as HTMLSpanElement;
 const boardNameWarning = document.getElementById("boardNameWarning") as HTMLSpanElement;
 const connectionStatus = document.getElementById("connectionStatus") as HTMLSpanElement;
@@ -16,7 +19,7 @@ const changeNameButtonContainer = document.getElementById("changeNameButtonConta
 const bluetoothRetrieveButton = document.getElementById("bluetoothRetrieveButton") as HTMLButtonElement;
 const bluetoothRetrieveContainer = document.getElementById("bluetoothRetrieveContainer") as HTMLDivElement;
 const boardNameEditSection = document.getElementById("boardNameEditSection") as HTMLDivElement;
-const firmwareActionSection = document.getElementById("firmwareActionSection");
+const firmwareActionSection = document.getElementById("firmwareActionSection") as HTMLDivElement;
 const flashWarning = document.getElementById("flashWarning") as HTMLDivElement;
 const flashFirmwareButton = document.getElementById("flashFirmwareButton") as HTMLButtonElement;
 const terminal = document.getElementById("terminal");
@@ -46,8 +49,32 @@ const stepWritingPercent = document.getElementById("step-writing-percent") as HT
 // https://unpkg.com/esptool-js@0.5.0/bundle.js
 import { ESPLoader, FlashOptions, LoaderOptions, Transport } from "../../../lib";
 import { serial } from "web-serial-polyfill";
-import binaryFileUrl from 'url:./stickem_main_merged.bin?url';
+import latest_binaryFileUrl from 'url:./latest_stickem_main_merged.bin?url';
+import v1_0_0_binaryFileUrl from 'url:./v1_0_0_stickem_main_merged.bin?url';
 import connectionDialogUrl from 'url:./Connection_Dialog.png?url';
+
+// Firmware version configuration
+interface FirmwareVersion {
+  value: string;
+  label: string;
+  binaryUrl: string;
+  description?: string;
+}
+
+const firmwareVersions: FirmwareVersion[] = [
+  {
+    value: "latest",
+    label: "Latest (v1.1.1)",
+    binaryUrl: latest_binaryFileUrl, // Use the current binary for latest
+    description: "Latest stable release with all bug fixes and features"
+  },
+  {
+    value: "v1.0.0",
+    label: "v1.0.0",
+    binaryUrl: v1_0_0_binaryFileUrl,
+    description: "Initial firmware version, has memory leak bug and only has hardcoded name"
+  }
+];
 
 // Check Web Serial API support after DOM elements are defined
 function checkWebSerialSupport() {
@@ -82,6 +109,7 @@ let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
 let defaultBinaryData: string = null;
+let currentFirmwareVersion: string = "latest"; // Track currently loaded version
 let originalBoardName: string = null; // Store original name for cancel functionality
 let currentBoardName: string = null; // Store current/auto-saved name
 const defaultBoardName: string = "Stick 'Em Box X"; // Default name for unnamed boards
@@ -151,11 +179,42 @@ let progressState: ProgressState = {
 function showProgressBar() {
   progressSection.style.display = 'block';
   resetProgress();
+
+  // Hide main UI containers during firmware update to focus on progress
+  const statusBoardDisplay = document.querySelector('.status-board-display') as HTMLElement;
+
+  // Hide specific elements within steps-grid but keep the grid itself for progress bar
+  step1.style.display = 'none';
+  step2.style.display = 'none';
+  const stepArrow = document.querySelector('.step-arrow') as HTMLElement;
+  const action1Grid = document.querySelector('.action1-grid') as HTMLElement;
+  const action2Grid = document.querySelector('.action2-grid') as HTMLElement;
+
+  if (statusBoardDisplay) statusBoardDisplay.style.display = 'none';
+  if (stepArrow) stepArrow.style.display = 'none';
+  if (action1Grid) action1Grid.style.display = 'none';
+  if (action2Grid) action2Grid.style.display = 'none';
 }
 
 function hideProgressBar() {
   progressSection.style.display = 'none';
   resetProgress();
+
+  // Restore main UI containers after firmware update
+  const statusBoardDisplay = document.querySelector('.status-board-display') as HTMLElement;
+
+  // Restore specific elements within steps-grid
+  step1.style.display = '';
+  step2.style.display = '';
+  const stepArrow = document.querySelector('.step-arrow') as HTMLElement;
+  const action1Grid = document.querySelector('.action1-grid') as HTMLElement;
+  const action2Grid = document.querySelector('.action2-grid') as HTMLElement;
+
+  if (statusBoardDisplay) statusBoardDisplay.style.display = '';
+  if (stepArrow) stepArrow.style.display = '';
+  if (action1Grid) action1Grid.style.display = '';
+  // Don't restore action2Grid (firmwareActionSection) if we're disconnecting
+  // This will be handled separately in the disconnect flow
 }
 
 function resetProgress() {
@@ -296,6 +355,25 @@ function hideBoardNameEdit() {
 // Add click event handlers
 advancedToggle.onclick = toggleAdvancedOptions;
 changeNameButton.onclick = showBoardNameEdit;
+
+// Add firmware version selection handler
+firmwareVersion.onchange = async () => {
+  const selectedVersion = firmwareVersion.value;
+  const versionConfig = firmwareVersions.find(v => v.value === selectedVersion);
+
+  if (versionConfig) {
+    term.writeln(`Loading firmware version: ${versionConfig.label}`);
+    const success = await loadBinaryFromUrl(versionConfig.binaryUrl);
+    if (success) {
+      term.writeln(`Successfully loaded ${versionConfig.label} firmware`);
+      currentFirmwareVersion = selectedVersion;
+    } else {
+      term.writeln(`Failed to load ${versionConfig.label} firmware - keeping current version`);
+      // Revert dropdown selection back to current version
+      firmwareVersion.value = currentFirmwareVersion;
+    }
+  }
+};
 bluetoothRetrieveButton.onclick = async () => {
   try {
     // Check if Web Bluetooth is supported
@@ -502,24 +580,35 @@ flashFirmwareButton.onclick = async () => {
   await flashFirmwareWithName();
 };
 
-// Load default binary file
-async function loadDefaultBinary() {
-  console.log("Loading default binary...", binaryFileUrl)
+// Load binary file from URL
+async function loadBinaryFromUrl(url: string) {
+  console.log("Loading binary from URL:", url);
   try {
-    const response = await fetch(binaryFileUrl);
+    const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
-    
+
     // Convert to binary string
     let binaryString = '';
     for (let i = 0; i < uint8Array.length; i++) {
       binaryString += String.fromCharCode(uint8Array[i]);
     }
     defaultBinaryData = binaryString;
+    return true;
   } catch (error) {
-    console.error('Failed to load default binary file:', error);
-    term.writeln('Warning: Could not load default binary file stickem_main_merged.bin');
+    console.error('Failed to load binary file from URL:', url, error);
+    term.writeln(`Warning: Could not load binary file from ${url}`);
+    return false;
   }
+}
+
+// Load default binary file
+async function loadDefaultBinary() {
+  const selectedVersion = firmwareVersion.value;
+  const versionConfig = firmwareVersions.find(v => v.value === selectedVersion);
+  const urlToLoad = versionConfig ? versionConfig.binaryUrl : binaryFileUrl;
+
+  await loadBinaryFromUrl(urlToLoad);
 }
 
 const espLoaderTerminal = {
@@ -735,6 +824,60 @@ manualConnectButton.onclick = async () => {
   await connectToDevice(false);
 };
 
+eraseFlashButton.onclick = async () => {
+  await eraseFlashComplete();
+};
+
+
+async function eraseFlashComplete() {
+  if (!esploader) {
+    term.writeln("Error: Please connect to device first");
+    updateFeedback("Error: Please connect to device first", 'error', false);
+    return;
+  }
+
+  // Show confirmation dialog
+  const confirmed = confirm(
+    "WARNING: This will completely erase all flash memory including:\n" +
+    "• Firmware\n" +
+    "• Board name\n" +
+    "• All stored data\n\n" +
+    "Are you sure you want to continue?"
+  );
+
+  if (!confirmed) {
+    term.writeln("Flash erase cancelled by user");
+    return;
+  }
+
+  updateFeedback("Erasing flash memory...", 'flashing', false);
+
+  try {
+    term.writeln("Starting complete flash erase...");
+
+    // Erase all flash
+    term.writeln("Erasing all flash memory...");
+    await esploader.eraseFlash();
+    term.writeln("Flash memory erased successfully!");
+
+    // Reset device
+    term.writeln("Resetting device...");
+    if (transport) {
+      await transport.setDTR(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await transport.setDTR(true);
+    }
+
+    term.writeln("Complete flash erase completed successfully!");
+    term.writeln("Device has been completely wiped and reset.");
+    updateFeedback("Flash erase completed - device is now blank", 'connected', false);
+
+  } catch (e) {
+    console.error(e);
+    term.writeln(`Error during flash erase: ${e.message}`);
+    updateFeedback("Flash erase failed", 'error', false);
+  }
+}
 
 async function flashFirmwareWithName() {
   // Use the auto-saved board name
@@ -834,23 +977,31 @@ async function flashFirmwareWithName() {
     
     // Step 3: Writing Board Name
     updateProgress(3, 0);
-    if (nameToWrite) {
+    const selectedVersion = firmwareVersion.value;
+    const skipNameWrite = selectedVersion === "v1.0.0";
+
+    if (skipNameWrite) {
+      term.writeln("Step 3: Writing board name...");
+      // Skip actual write for v1.0.0 but show progress
+      updateProgress(3, 100);
+      term.writeln(`\nBoard name write skipped due to legacy version v1.0.0`);
+    } else if (nameToWrite) {
       if (boardName) {
         term.writeln("Step 3: Writing new board name...");
       } else {
         term.writeln("Step 3: Restoring preserved board name...");
       }
-      
+
       // Convert board name to binary data (null-terminated string)
       const encoder = new TextEncoder();
       const boardNameBytes = encoder.encode(nameToWrite + '\0');
-      
+
       // Create a binary string from the bytes
       let binaryString = '';
       for (let i = 0; i < boardNameBytes.length; i++) {
         binaryString += String.fromCharCode(boardNameBytes[i]);
       }
-      
+
       const boardNameFlashOptions: FlashOptions = {
         fileArray: [{ data: binaryString, address: 0x150000 }],
         flashSize: "keep",
@@ -863,13 +1014,14 @@ async function flashFirmwareWithName() {
         },
         calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
       } as FlashOptions;
-      
+
       await esploader.writeFlash(boardNameFlashOptions);
       term.writeln(`\nBoard name "${nameToWrite}" written successfully!`);
+      updateProgress(3, 100);
     } else {
       term.writeln("Step 3: No name to write (no existing name found and none provided)");
+      updateProgress(3, 100);
     }
-    updateProgress(3, 100);
     
     // Final step: Reset the device
     term.writeln("Resetting device...");
@@ -920,7 +1072,7 @@ async function flashFirmwareWithName() {
     connectButton.style.display = "initial";
     manualConnectButton.style.display = "initial";
     disconnectButton.style.display = "none";
-    firmwareActionSection.style.display = "none";
+    firmwareActionSection.style.setProperty("display", "none", "important");
     
     hideBoardNameEdit();
     bluetoothRetrieveContainer.style.display = "none";
@@ -1000,10 +1152,55 @@ disconnectButton.onclick = async () => {
   focusStep(1);
 };
 
+// Force Disconnect button (for emergency use during firmware update)
+forceDisconnectButton.onclick = async () => {
+  // Use the same disconnect logic as the regular disconnect button
+  if (transport) {
+    try {
+      // Perform DTR reset before disconnecting
+      await transport.setDTR(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await transport.setDTR(true);
+      term.writeln("Device reset completed.");
+
+      await transport.disconnect();
+      term.writeln("Device disconnected successfully.");
+    } catch (e) {
+      console.warn("Disconnect error (cable may have been unplugged):", e.message);
+      term.writeln("Device was already disconnected (cable unplugged?)");
+    }
+  }
+
+  term.writeln("Ready for next connection.");
+  connectButton.style.display = "initial";
+  manualConnectButton.style.display = "initial";
+  disconnectButton.style.display = "none";
+  firmwareActionSection.style.display = "none";
+
+  hideBoardNameEdit();
+  hideProgressBar();
+  bluetoothRetrieveContainer.style.display = "none";
+  lblConnTo.style.display = "none";
+  alertDiv.style.display = "none";
+  cleanUp();
+
+  // Reset board status and name variables
+  updateBoardStatus("No Board Detected", false);
+  updateConnectionStatus(false);
+  updateFeedback("Ready to connect...", 'default', false);
+  currentBoardName = null;
+  originalBoardName = null;
+  userHasModifiedName = false;
+
+  // Focus back on step 1 when disconnected
+  focusStep(1);
+};
 
 
 
-// Initialize default binary loading
+
+// Initialize default binary loading and set current firmware version
+currentFirmwareVersion = firmwareVersion.value; // Set to whatever is selected by default in HTML
 loadDefaultBinary();
 
 // Check Web Serial API support now that DOM elements are ready
